@@ -1,0 +1,5 @@
+__pycache__/
+*.pyc
+.nse_cache/
+start.bat
+start.zip

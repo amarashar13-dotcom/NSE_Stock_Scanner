@@ -1,0 +1,1080 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NSE Sector Movers</title>
+<style>
+  :root {
+    --bg: #0a1628;
+    --panel: #0d1b2a;
+    --panel2: #132035;
+    --border: #2a3b55;
+    --gold: #ffd700;
+    --up: #00e676;
+    --dn: #ff1744;
+    --txt: #e8eef7;
+    --dim: #93a4bd;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--txt);
+    font-family: "Segoe UI", Arial, sans-serif;
+    height: 100vh;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+  header {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 12px 20px;
+    background: var(--panel);
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+  header h1 {
+    font-size: 18px;
+    letter-spacing: 1px;
+    color: var(--gold);
+    font-weight: 700;
+  }
+  .tabs { display: flex; gap: 8px; margin-left: 8px; }
+  .tab {
+    background: var(--panel2);
+    color: var(--dim);
+    border: 1px solid var(--border);
+    padding: 7px 16px;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: color .15s, border-color .15s;
+  }
+  .tab:hover { color: var(--txt); border-color: var(--gold); }
+  .tab.active { color: var(--gold); border-color: var(--gold); background: rgba(255,215,0,.08); }
+  main.news, main.scanner { grid-template-columns: 1fr; }
+  .cat-btn {
+    background: var(--panel2);
+    color: var(--dim);
+    border: 1px solid var(--border);
+    padding: 8px 16px;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: color .15s, border-color .15s;
+  }
+  .cat-btn:hover { color: var(--txt); border-color: var(--gold); }
+  .cat-btn.active { color: var(--gold); border-color: var(--gold); background: rgba(255,215,0,.08); }
+  .cat-btn:disabled { opacity: .5; cursor: not-allowed; }
+  #newsCats { display: flex; gap: 8px; flex-wrap: wrap; }
+  #scanMeta { font-size: 12px; color: var(--dim); }
+  #scanBtn { background: var(--panel2); color: var(--gold); border: 1px solid var(--border); padding: 9px 18px; font-size: 13px; border-radius: 6px; cursor: pointer; font-weight: 700; }
+  #scanBtn:hover:not(:disabled) { border-color: var(--gold); }
+  #scanBtn:disabled { opacity: .6; cursor: wait; }
+  .scan-note {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px 16px;
+    font-size: 12px;
+    color: var(--dim);
+    line-height: 1.6;
+    margin-top: 18px;
+  }
+  .scan-note b { color: var(--gold); }
+  #watchRow { margin-bottom: 14px; }
+  #watchInput {
+    flex: 1;
+    min-width: 220px;
+    background: var(--panel2);
+    color: var(--txt);
+    border: 1px solid var(--border);
+    padding: 8px 12px;
+    font-size: 13px;
+    border-radius: 6px;
+  }
+  #watchInput:focus { outline: none; border-color: var(--gold); }
+  #newsList { display: flex; flex-direction: column; gap: 12px; }
+  .news-card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 14px 16px;
+  }
+  .news-card a {
+    color: var(--txt);
+    text-decoration: none;
+    font-size: 15px;
+    font-weight: 600;
+    line-height: 1.4;
+    display: block;
+  }
+  .news-card a:hover { color: var(--gold); }
+  .news-summary { margin-top: 8px; font-size: 13px; color: var(--dim); line-height: 1.5; }
+  .news-meta {
+    margin-top: 10px;
+    font-size: 12px;
+    color: var(--dim);
+    display: flex;
+    gap: 14px;
+    align-items: center;
+  }
+  .news-src {
+    color: var(--gold);
+    font-weight: 700;
+    letter-spacing: .5px;
+  }
+  #fxFilter { margin-bottom: 14px; }
+  #fxFilter .lbl { font-size: 12px; font-weight: 700; letter-spacing: 1px; color: var(--dim); }
+  .imp { padding: 2px 9px; border-radius: 12px; font-size: 11px; font-weight: 700; text-transform: uppercase; }
+  .imp.high { background: rgba(255,23,68,.15); color: var(--dn); }
+  .imp.medium { background: rgba(255,152,0,.15); color: #ffab40; }
+  .imp.low { background: rgba(147,164,189,.15); color: var(--dim); }
+  .imp.none { background: transparent; color: var(--dim); }
+  tr.past { opacity: .45; }
+  #alertBanner {
+    position: fixed;
+    right: 20px;
+    bottom: 20px;
+    z-index: 100;
+    background: var(--panel);
+    border: 1px solid var(--gold);
+    color: var(--txt);
+    border-radius: 10px;
+    padding: 14px 18px;
+    max-width: 380px;
+    box-shadow: 0 8px 30px rgba(0,0,0,.5);
+    display: flex;
+    gap: 12px;
+    align-items: flex-start;
+    animation: slideIn .3s ease;
+  }
+  @keyframes slideIn { from { transform: translateY(20px); opacity: 0; } to { transform: none; opacity: 1; } }
+  #alertBanner .al-title { color: var(--gold); font-weight: 700; font-size: 13px; letter-spacing: 1px; margin-bottom: 4px; }
+  #alertBanner .al-body { font-size: 13px; line-height: 1.5; }
+  #alertClose { background: none; border: none; color: var(--dim); font-size: 20px; cursor: pointer; line-height: 1; padding: 0 2px; }
+  #alertClose:hover { color: var(--gold); }
+  #marketBadge {
+    font-size: 12px;
+    padding: 4px 12px;
+    border-radius: 20px;
+    font-weight: 700;
+  }
+  #marketBadge.open { background: rgba(0,230,118,.15); color: var(--up); }
+  #marketBadge.closed { background: rgba(255,23,68,.15); color: var(--dn); }
+  #marketBadge.preopen { background: rgba(255,196,0,.15); color: #ffc400; }
+  #updated { margin-left: auto; font-size: 12px; color: var(--dim); }
+  main { display: grid; grid-template-columns: 300px 1fr; flex: 1; min-height: 0; }
+  aside {
+    background: var(--panel);
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+  }
+  .panel-title {
+    padding: 12px 16px;
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--gold);
+    letter-spacing: 1.5px;
+    border-bottom: 1px solid var(--border);
+  }
+  #sectorList { list-style: none; overflow-y: auto; flex: 1; min-height: 0; }
+  #sectorList::-webkit-scrollbar { width: 8px; }
+  #sectorList::-webkit-scrollbar-track { background: transparent; }
+  #sectorList::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+  #sectorList::-webkit-scrollbar-thumb:hover { background: var(--gold); }
+  #sectorList { scrollbar-width: thin; scrollbar-color: var(--border) transparent; }
+  #sectorList li {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 16px;
+    cursor: pointer;
+    border-bottom: 1px solid rgba(42,59,85,.5);
+    transition: background .15s;
+  }
+  #sectorList li:hover { background: var(--panel2); }
+  #sectorList li.active {
+    background: var(--panel2);
+    box-shadow: inset 3px 0 0 var(--gold);
+  }
+  #sectorList .sname { font-size: 13px; }
+  #sectorList .spct { font-size: 14px; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .up { color: var(--up); }
+  .dn { color: var(--dn); }
+  section { padding: 16px 20px; overflow-y: auto; min-height: 0; }
+  section::-webkit-scrollbar { width: 10px; }
+  section::-webkit-scrollbar-track { background: transparent; }
+  section::-webkit-scrollbar-thumb { background: var(--border); border-radius: 5px; }
+  section::-webkit-scrollbar-thumb:hover { background: var(--gold); }
+  section { scrollbar-width: thin; scrollbar-color: var(--border) transparent; }
+  .controls { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
+  #sectorSelect {
+    background: var(--panel2);
+    color: var(--txt);
+    border: 1px solid var(--border);
+    padding: 9px 14px;
+    font-size: 14px;
+    border-radius: 6px;
+    min-width: 260px;
+  }
+  #refreshBtn {
+    background: var(--panel2);
+    color: var(--gold);
+    border: 1px solid var(--border);
+    padding: 9px 18px;
+    font-size: 13px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-weight: 700;
+  }
+  #refreshBtn:hover { border-color: var(--gold); }
+  #errBanner {
+    background: rgba(255,23,68,.12);
+    border: 1px solid var(--dn);
+    color: #ff8a9b;
+    padding: 10px 14px;
+    border-radius: 6px;
+    margin-bottom: 14px;
+    font-size: 13px;
+    word-break: break-word;
+  }
+  .hidden { display: none; }
+  .tables { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin-bottom: 22px; }
+  .tbl-col { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+  .tbl-title {
+    padding: 10px 14px;
+    font-size: 12px;
+    font-weight: 800;
+    letter-spacing: 1px;
+    border-bottom: 1px solid var(--border);
+  }
+  .tbl-title.gain { color: var(--up); }
+  .tbl-title.lose { color: var(--dn); }
+  .full { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+  table { width: 100%; border-collapse: collapse; }
+  th {
+    font-size: 11px;
+    color: var(--dim);
+    text-align: right;
+    padding: 8px 12px;
+    background: var(--panel2);
+  }
+  th:first-child, td:first-child { text-align: left; }
+  td {
+    padding: 8px 12px;
+    font-size: 13px;
+    text-align: right;
+    border-top: 1px solid rgba(42,59,85,.4);
+    font-variant-numeric: tabular-nums;
+  }
+  .rank { font-size: 11px; color: var(--dim); }
+  .sym { font-weight: 700; }
+  .sym a { color: inherit; text-decoration: none; }
+  .sym a:hover { color: var(--gold); text-decoration: underline; }
+  .gold { color: var(--gold); }
+  .empty { text-align: center; color: var(--dim); padding: 20px; font-size: 13px; }
+  footer { padding: 10px 16px; font-size: 11px; color: var(--dim); border-top: 1px solid var(--border); background: var(--panel); }
+</style>
+</head>
+<body>
+  <header>
+    <h1>NSE STOCK SCANNER</h1>
+    <nav class="tabs">
+      <button id="tabSectors" class="tab active">SECTORS</button>
+      <button id="tabNews" class="tab">NEWS</button>
+      <button id="tabScanner" class="tab">MACD SCAN</button>
+      <button id="tabBreakout" class="tab">BREAKOUT</button>
+      <button id="tabRsi" class="tab">RSI SCAN</button>
+    </nav>
+    <span id="marketBadge" class="closed">LOADING…</span>
+    <button id="alertBtn" class="tab" title="Alert 2 minutes before high-impact events">ALERTS OFF</button>
+    <span id="updated"></span>
+  </header>
+  <main id="main">
+    <aside id="sectorsPanel">
+      <div class="panel-title">SECTORS · LIVE</div>
+      <ul id="sectorList"><li class="empty">Loading sectors…</li></ul>
+      <footer>Tap a sector to load its movers</footer>
+    </aside>
+    <section>
+      <div id="errBanner" class="hidden"></div>
+      <div id="sectorsView">
+        <div class="controls">
+          <select id="sectorSelect"><option>Loading…</option></select>
+          <button id="refreshBtn">REFRESH</button>
+        </div>
+        <div class="tables">
+          <div class="tbl-col">
+            <div class="tbl-title gain">TOP GAINERS</div>
+            <table id="gainersTable"><tr><td class="empty" colspan="4">Select a sector</td></tr></table>
+          </div>
+          <div class="tbl-col">
+            <div class="tbl-title lose">TOP LOSERS</div>
+            <table id="losersTable"><tr><td class="empty" colspan="4">Select a sector</td></tr></table>
+          </div>
+        </div>
+        <div class="full">
+          <div class="tbl-title">ALL CONSTITUENTS · SORTED BY % CHANGE</div>
+          <table id="fullTable"><tr><td class="empty" colspan="5">Select a sector</td></tr></table>
+        </div>
+      </div>
+      <div id="newsView" class="hidden">
+        <div class="controls">
+          <span id="newsCats"></span>
+          <button id="newsRefreshBtn">REFRESH</button>
+        </div>
+        <div class="controls" id="watchRow">
+          <input id="watchInput" type="text" placeholder="Stock alert keywords, comma separated (e.g. RELIANCE, TATA, RBI, IPO)">
+          <button id="watchSave" class="cat-btn">SAVE</button>
+          <button id="watchClear" class="cat-btn">CLEAR</button>
+        </div>
+        <div id="fxFilter" class="controls hidden">
+          <span class="lbl">IMPACT:</span>
+          <button class="cat-btn active" data-fx="all">ALL</button>
+          <button class="cat-btn" data-fx="high">HIGH</button>
+          <button class="cat-btn" data-fx="med">MED + HIGH</button>
+        </div>
+        <div id="newsList"><div class="empty">Loading news…</div></div>
+      </div>
+      <div id="scannerView" class="hidden">
+        <div class="controls">
+          <select id="scanSelect"><option>Loading sectors…</option></select>
+          <button id="scanBtn" class="cat-btn">RUN SCAN</button>
+          <span id="scanMeta"></span>
+        </div>
+        <div class="tables">
+          <div class="tbl-col">
+            <div class="tbl-title gain">BULLISH · MACD HIST DOWN→UP + ABOVE 100 EMA</div>
+            <table id="scanBullTable"><tr><td class="empty" colspan="7">Run a scan</td></tr></table>
+          </div>
+          <div class="tbl-col">
+            <div class="tbl-title lose">BEARISH · MACD HIST UP→DOWN + BELOW 100 EMA</div>
+            <table id="scanBearTable"><tr><td class="empty" colspan="7">Run a scan</td></tr></table>
+          </div>
+        </div>
+        <div class="scan-note">
+          <b>How it works:</b> MACD (12, 26, 9). <b>BULLISH</b> = histogram flips red→green (≤0 to &gt;0), the MACD line is rising, and close is at least 0.5% above the 100 EMA.
+          <b>BEARISH</b> = reverse: histogram flips green→red (≥0 to &lt;0), the MACD line is falling, and close is at least 0.5% below the 100 EMA.
+        </div>
+      </div>
+      <div id="breakoutView" class="hidden">
+        <div class="controls">
+          <select id="boSelect"><option>Loading sectors…</option></select>
+          <button id="boBtn" class="cat-btn">RUN SCAN</button>
+          <span id="boMeta"></span>
+        </div>
+        <div class="full">
+          <div class="tbl-title">ACCUMULATION BREAKOUT · 50/200 EMA TREND + VOLUME DRY-UP</div>
+          <table id="boTable"><tr><td class="empty" colspan="10">Run a scan</td></tr></table>
+        </div>
+        <div class="scan-note">
+          <b>How it works:</b> 25-bar tight accumulation base (≤18% wide, quiet bodies), volume dry-up, then a breakout above the prior base high on ≥1.3x the 20-bar average volume.
+          Requires rising 50/200 EMAs (close &gt; EMA50 &gt; EMA200), RSI ≥ 52, strong close (≥65% of range), price ≥ ₹50.
+          Entry = max(open, breakout price). Stop below the base low. Targets = 1R / 2R / 3R.
+        </div>
+      </div>
+      <div id="rsiView" class="hidden">
+        <div class="controls">
+          <select id="rsiSelect"><option>Loading sectors…</option></select>
+          <button id="rsiBtn" class="cat-btn">RUN SCAN</button>
+          <button id="rsiExportBtn" class="cat-btn" disabled title="Export scanned buy/sell stocks as CSV">EXPORT CSV</button>
+          <span id="rsiMeta"></span>
+        </div>
+        <div class="tables">
+          <div class="tbl-col">
+            <div class="tbl-title gain">BUY · RSI BETWEEN 60 AND 70 · ABOVE 200 EMA</div>
+            <table id="rsiBuyTable"><tr><td class="empty" colspan="7">Run a scan</td></tr></table>
+          </div>
+          <div class="tbl-col">
+            <div class="tbl-title lose">SELL · RSI DROPPING BETWEEN 30 AND 45 · BELOW 200 EMA</div>
+            <table id="rsiSellTable"><tr><td class="empty" colspan="7">Run a scan</td></tr></table>
+          </div>
+        </div>
+        <div class="scan-note">
+          <b>How it works:</b> Wilder's RSI (14). <b>BUY</b> = RSI between 60 and 70 (strong uptrend, not yet overbought) and price above the 200 EMA.
+          <b>SELL</b> = RSI dropping (current &lt; previous), between 30 and 45 (weakness building before oversold), and price below the 200 EMA.
+        </div>
+      </div>
+    </section>
+  </main>
+  <div id="alertBanner" class="hidden">
+    <div>
+      <div class="al-title" id="alertTitle">HIGH IMPACT EVENT — STARTS SOON</div>
+      <div class="al-body" id="alertMsg"></div>
+    </div>
+    <button id="alertClose">×</button>
+  </div>
+
+<script>
+  const S = 15;                    // refresh seconds
+  const $ = id => document.getElementById(id);
+  let sectors = [];
+  let selected = null;
+  let timer = null;
+
+  function fmt(v, d = 2, sign = false) {
+    if (v === null || v === undefined || isNaN(v)) return "—";
+    const s = v.toFixed(d);
+    return sign ? (v > 0 ? "+" + s : s) : s;
+  }
+  function esc(s) {
+    return String(s || "").replace(/[&<>"']/g, c => ({
+      "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
+    })[c]);
+  }
+  function pctClass(v) { return v > 0 ? "up" : v < 0 ? "dn" : ""; }
+  function tvHref(sym) {
+    return "https://www.tradingview.com/chart/?symbol=NSE:" + encodeURIComponent(sym);
+  }
+
+  function drawSectors(list) {
+    const ul = $("sectorList");
+    ul.innerHTML = "";
+    if (!list.length) {
+      ul.innerHTML = '<li class="empty">No sector data</li>';
+      return;
+    }
+    const sel = $("sectorSelect");
+    sel.innerHTML = "";
+    list.forEach(s => {
+      const li = document.createElement("li");
+      li.className = selected === s.name ? "active" : "";
+      li.innerHTML = '<span class="sname">' + s.name.replace("NIFTY ", "") + '</span>'
+                   + '<span class="spct ' + pctClass(s.pChange) + '">' + fmt(s.pChange, 2, true) + "%</span>";
+      li.onclick = () => { selected = s.name; sel.value = s.name; drawSectors(list); loadSector(); };
+      ul.appendChild(li);
+      const opt = document.createElement("option");
+      opt.value = s.name;
+      opt.textContent = s.name.replace("NIFTY ", "");
+      sel.appendChild(opt);
+    });
+    if (selected) sel.value = selected;
+    syncScanSelect();
+  }
+
+  let scannerInited = false;
+
+  function syncScanSelect() {
+    [["scanSelect", "scan"], ["boSelect", "bo"], ["rsiSelect", "rsi"]].forEach(([id, store]) => {
+      const sel = $(id);
+      if (!sel || !sectors.length) return;
+      const cur = sel.value || localStorage.getItem(store + "Sector") || "";
+      sel.innerHTML = '<option value="ALL">ALL SECTORS</option>';
+      sectors.forEach(s => {
+        const o = document.createElement("option");
+        o.value = s.name;
+        o.textContent = s.name.replace("NIFTY ", "");
+        sel.appendChild(o);
+      });
+      if (cur) {
+        sel.value = cur;
+        localStorage.setItem(store + "Sector", cur);
+      }
+    });
+  }
+
+  function drawBreakoutTable(rows) {
+    const t = $("boTable");
+    if (!rows.length) {
+      t.innerHTML = '<tr><td class="empty" colspan="10">No breakout signals</td></tr>';
+      return;
+    }
+    let h = '<tr><th>SYMBOL</th><th>PRICE</th><th>CHG%</th><th>ENTRY</th><th>STOP</th><th>TARGET 1R</th><th>TARGET 2R</th><th>TARGET 3R</th><th>VOL RATIO</th><th>RSI</th></tr>';
+    rows.forEach(r => {
+      h += '<tr><td class="sym"><a href="' + tvHref(r.symbol) + '" target="_blank" rel="noopener">' + r.symbol + '</a></td>'
+         + '<td class="' + pctClass(r.changePct) + '">' + fmt(r.price) + '</td>'
+         + '<td class="' + pctClass(r.changePct) + '">' + fmt(r.changePct, 2, true) + '%</td>'
+         + '<td class="up">' + fmt(r.entry) + '</td>'
+         + '<td class="dn">' + fmt(r.stop) + '</td>'
+         + '<td>' + fmt(r.target1) + '</td>'
+         + '<td>' + fmt(r.target2) + '</td>'
+         + '<td>' + fmt(r.target3) + '</td>'
+         + '<td class="up">' + fmt(r.volRatio) + '</td>'
+         + '<td>' + fmt(r.rsi, 1) + '</td></tr>';
+    });
+    t.innerHTML = h;
+  }
+
+  async function runBreakoutScan() {
+    const sel = $("boSelect");
+    const name = sel.value;
+    if (!name) return;
+    const btn = $("boBtn");
+    btn.disabled = true;
+    btn.textContent = "SCANNING…";
+    $("boMeta").textContent = name === "ALL"
+      ? "Scanning ALL sectors (~700 stocks, takes several minutes)…"
+      : "Scanning constituents (takes ~1 min first time)…";
+    $("boTable").innerHTML = '<tr><td class="empty" colspan="10">Scanning…</td></tr>';
+    try {
+      const res = await fetch("/api/breakout?name=" + encodeURIComponent(name));
+      const j = await res.json();
+      if (!j.ok) throw new Error(j.error || "API error");
+      drawBreakoutTable(j.signals);
+      $("boMeta").textContent = "Scanned " + j.scanned + " of " + j.total + " stocks in " + j.elapsed + "s";
+      showErr(null);
+    } catch (e) {
+      $("boMeta").textContent = "";
+      showErr(e.message);
+    } finally {
+      btn.disabled = false;
+      btn.textContent = "RUN SCAN";
+    }
+  }
+
+  function drawRsiTable(tbl, rows) {
+    if (!rows.length) {
+      tbl.innerHTML = '<tr><td class="empty" colspan="7">No signals</td></tr>';
+      return;
+    }
+    let h = '<tr><th>SYMBOL</th><th>PRICE</th><th>CHG%</th><th>RSI</th><th>RSI PREV</th><th>EMA 200</th><th>DIST%</th></tr>';
+    rows.forEach(r => {
+      h += '<tr><td class="sym"><a href="' + tvHref(r.symbol) + '" target="_blank" rel="noopener">' + r.symbol + '</a></td>'
+         + '<td class="' + pctClass(r.changePct) + '">' + fmt(r.price) + '</td>'
+         + '<td class="' + pctClass(r.changePct) + '">' + fmt(r.changePct, 2, true) + '%</td>'
+         + '<td>' + fmt(r.rsi, 1) + '</td>'
+         + '<td>' + fmt(r.rsiPrev, 1) + '</td>'
+         + '<td>' + fmt(r.ema200) + '</td>'
+         + '<td class="' + pctClass(r.distPct) + '">' + fmt(r.distPct, 1, true) + '%</td></tr>';
+    });
+    tbl.innerHTML = h;
+  }
+
+  let lastRsi = { buy: [], sell: [] };
+
+  function downloadFile(filename, content, type) {
+    const blob = new Blob(["\ufeff" + content], { type: type || "text/csv;charset=utf-8;" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(a.href);
+  }
+
+  function exportRsiList() {
+    const rows = [];
+    const add = (arr, type) => arr.forEach(r =>
+      rows.push([r.symbol, type, r.price, r.changePct, r.rsi, r.rsiPrev, r.ema200, r.distPct])
+    );
+    add(lastRsi.buy, "BUY");
+    add(lastRsi.sell, "SELL");
+    if (!rows.length) return;
+    const csv = rows.map(r => r.map(v => {
+      const s = String(v === null || v === undefined ? "" : v);
+      return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+    }).join(",")).join("\n");
+    const stamp = new Date().toISOString().slice(0, 10);
+    downloadFile("rsi_scan_" + stamp + ".csv", "SYMBOL,TYPE,PRICE,CHG%,RSI,RSI_PREV,EMA200,DIST%\n" + csv);
+  }
+
+  async function runRsiScan() {
+    const sel = $("rsiSelect");
+    const name = sel.value;
+    if (!name) return;
+    const btn = $("rsiBtn");
+    btn.disabled = true;
+    btn.textContent = "SCANNING…";
+    $("rsiMeta").textContent = name === "ALL"
+      ? "Scanning ALL sectors (~700 stocks, takes several minutes)…"
+      : "Scanning constituents (takes ~30-60s first time)…";
+    $("rsiBuyTable").innerHTML = '<tr><td class="empty" colspan="7">Scanning…</td></tr>';
+    $("rsiSellTable").innerHTML = '<tr><td class="empty" colspan="7">Scanning…</td></tr>';
+    try {
+      const res = await fetch("/api/rsiscan?name=" + encodeURIComponent(name));
+      const j = await res.json();
+      if (!j.ok) throw new Error(j.error || "API error");
+      drawRsiTable($("rsiBuyTable"), j.buy);
+      drawRsiTable($("rsiSellTable"), j.sell);
+      lastRsi = { buy: j.buy, sell: j.sell };
+      $("rsiExportBtn").disabled = !(j.buy.length || j.sell.length);
+      $("rsiMeta").textContent = "Scanned " + j.scanned + " of " + j.total + " stocks in " + j.elapsed + "s";
+      showErr(null);
+    } catch (e) {
+      $("rsiMeta").textContent = "";
+      showErr(e.message);
+    } finally {
+      btn.disabled = false;
+      btn.textContent = "RUN SCAN";
+    }
+  }
+
+  function drawScanTable(tbl, rows) {
+    if (!rows.length) {
+      tbl.innerHTML = '<tr><td class="empty" colspan="7">No signals</td></tr>';
+      return;
+    }
+    let h = '<tr><th>SYMBOL</th><th>PRICE</th><th>CHG%</th><th>MACD (PREV→NOW)</th><th>HIST (PREV→NOW)</th><th>100 EMA</th><th>DIST%</th></tr>';
+    rows.forEach(r => {
+      h += '<tr><td class="sym"><a href="' + tvHref(r.symbol) + '" target="_blank" rel="noopener">' + r.symbol + '</a></td>'
+         + '<td class="' + pctClass(r.changePct) + '">' + fmt(r.price) + '</td>'
+         + '<td class="' + pctClass(r.changePct) + '">' + fmt(r.changePct, 2, true) + '%</td>'
+         + '<td class="' + (r.macdLast > r.macdPrev ? "up" : "dn") + '">' + r.macdPrev.toFixed(3) + " → " + r.macdLast.toFixed(3) + '</td>'
+         + '<td class="' + (r.histLast > 0 ? "up" : "dn") + '">' + (r.histPrev == null ? "—" : r.histPrev.toFixed(3)) + " → " + r.histLast.toFixed(3) + '</td>'
+         + '<td>' + fmt(r.ema100) + '</td>'
+         + '<td class="' + pctClass(r.distPct) + '">' + fmt(r.distPct, 1, true) + '%</td></tr>';
+    });
+    tbl.innerHTML = h;
+  }
+
+  function initScanner() {
+    syncScanSelect();
+  }
+
+  async function runScan() {
+    const name = $("scanSelect").value;
+    if (!name) return;
+    const btn = $("scanBtn");
+    btn.disabled = true;
+    btn.textContent = "SCANNING…";
+    $("scanMeta").textContent = name === "ALL"
+      ? "Scanning ALL sectors (~700 stocks, takes a few minutes)…"
+      : "Scanning constituents (takes ~30-60s first time)…";
+    $("scanBullTable").innerHTML = '<tr><td class="empty" colspan="7">Scanning…</td></tr>';
+    $("scanBearTable").innerHTML = '<tr><td class="empty" colspan="7">Scanning…</td></tr>';
+    try {
+      const res = await fetch("/api/scan?name=" + encodeURIComponent(name));
+      const j = await res.json();
+      if (!j.ok) throw new Error(j.error || "API error");
+      drawScanTable($("scanBullTable"), j.bullish);
+      drawScanTable($("scanBearTable"), j.bearish);
+      $("scanMeta").textContent = "Scanned " + j.scanned + " of " + j.total + " stocks in " + j.elapsed + "s";
+      showErr(null);
+    } catch (e) {
+      $("scanMeta").textContent = "";
+      showErr(e.message);
+    } finally {
+      btn.disabled = false;
+      btn.textContent = "RUN SCAN";
+    }
+  }
+
+  function drawTable(tbl, rows, medals) {
+    if (!rows.length) {
+      tbl.innerHTML = '<tr><td class="empty" colspan="4">No stocks</td></tr>';
+      return;
+    }
+    let h = '<tr><th>#</th><th>SYMBOL</th><th>PRICE</th><th>CHG%</th></tr>';
+    rows.forEach((r, i) => {
+      h += '<tr><td class="rank' + (medals && i < 3 ? " gold" : "") + '">' + (medals ? ["1","2","3"][i] || (i+1) : (i+1)) + '</td>'
+         + '<td class="sym"><a href="' + tvHref(r.symbol) + '" target="_blank" rel="noopener">' + r.symbol + '</a></td>'
+         + '<td class="' + pctClass(r.change) + '">' + fmt(r.price) + '</td>'
+         + '<td class="' + pctClass(r.pChange) + '">' + fmt(r.pChange, 2, true) + '%</td></tr>';
+    });
+    tbl.innerHTML = h;
+  }
+
+  function drawFull(stocks) {
+    const t = $("fullTable");
+    if (!stocks.length) {
+      t.innerHTML = '<tr><td class="empty" colspan="5">No stocks</td></tr>';
+      return;
+    }
+    let h = '<tr><th>SYMBOL</th><th>PRICE</th><th>CHG%</th><th>VOLUME</th><th>VALUE (CR)</th></tr>';
+    stocks.forEach(r => {
+      h += '<tr><td class="sym"><a href="' + tvHref(r.symbol) + '" target="_blank" rel="noopener">' + r.symbol + '</a></td>'
+         + '<td class="' + pctClass(r.change) + '">' + fmt(r.price) + '</td>'
+         + '<td class="' + pctClass(r.pChange) + '">' + fmt(r.pChange, 2, true) + '%</td>'
+         + '<td>' + (r.volume == null ? "—" : (r.volume / 100000).toFixed(1) + " L") + '</td>'
+         + '<td>' + (r.turnover == null ? "—" : (r.turnover / 10000000).toFixed(2)) + '</td></tr>';
+    });
+    t.innerHTML = h;
+  }
+
+  function showErr(msg) {
+    const b = $("errBanner");
+    if (msg) { b.textContent = "⚠ " + msg; b.classList.remove("hidden"); }
+    else b.classList.add("hidden");
+  }
+
+  async function loadSectors() {
+    try {
+      const res = await fetch("/api/sectors");
+      const j = await res.json();
+      if (!j.ok) throw new Error(j.error || "API error");
+      const badge = $("marketBadge");
+      const status = (j.marketStatus || "").toLowerCase();
+      if (status.includes("open")) {
+        badge.textContent = "MARKET OPEN";
+        badge.className = "open";
+      } else if (status.includes("pre")) {
+        badge.textContent = "PRE-OPEN";
+        badge.className = "preopen";
+      } else {
+        badge.textContent = "MARKET CLOSED";
+        badge.className = "closed";
+      }
+      $("updated").textContent = "Updated " + new Date().toLocaleTimeString();
+      sectors = j.sectors;
+      if (!selected && sectors.length) selected = sectors[0].name;
+      drawSectors(sectors);
+      showErr(null);
+      if (selected) loadSector();
+    } catch (e) {
+      showErr(e.message);
+    }
+  }
+
+  async function loadSector() {
+    if (!selected) return;
+    try {
+      const res = await fetch("/api/sector?name=" + encodeURIComponent(selected));
+      const j = await res.json();
+      if (!j.ok) throw new Error(j.error || "API error");
+      drawTable($("gainersTable"), j.gainers, true);
+      drawTable($("losersTable"), j.losers, true);
+      drawFull(j.stocks);
+      showErr(null);
+    } catch (e) {
+      showErr(e.message);
+    }
+  }
+
+  $("sectorSelect").addEventListener("change", e => {
+    selected = e.target.value;
+    drawSectors(sectors);
+    loadSector();
+  });
+  $("refreshBtn").addEventListener("click", () => { loadSectors(); });
+
+  const CATS = {
+    india: "Stock Market",
+    goldsilver: "Gold & Silver",
+    crypto: "Crypto",
+    calendar: "Economic Calendar"
+  };
+  let newsCat = "india";
+  let newsLoaded = false;
+  let lastNewsLoad = 0;
+  let fxEvents = [];
+  let fxImpact = "all";
+  let alertsEnabled = localStorage.getItem("ffAlerts") === "1";
+  let notifiedEvents = new Set();
+  let alertTimer = null;
+
+  function beep() {
+    try {
+      const ctx = new (window.AudioContext || window.webkitAudioContext)();
+      const o = ctx.createOscillator();
+      const g = ctx.createGain();
+      o.connect(g); g.connect(ctx.destination);
+      o.type = "sine"; o.frequency.value = 880;
+      g.gain.setValueAtTime(0.0001, ctx.currentTime);
+      g.gain.exponentialRampToValueAtTime(0.3, ctx.currentTime + 0.02);
+      g.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.6);
+      o.start(); o.stop(ctx.currentTime + 0.6);
+    } catch (e) {}
+  }
+
+  function flashAlert(title, body) {
+    $("alertTitle").textContent = title;
+    $("alertMsg").textContent = body;
+    $("alertBanner").classList.remove("hidden");
+    clearTimeout(alertTimer);
+    alertTimer = setTimeout(() => $("alertBanner").classList.add("hidden"), 25000);
+  }
+
+  function showAlert(title, body, tag) {
+    if ("Notification" in window && Notification.permission === "granted") {
+      try { new Notification(title, { body, tag: tag || (title + body) }); } catch (err) {}
+    }
+    flashAlert(title, body);
+    beep();
+  }
+
+  async function checkAlerts() {
+    if (!alertsEnabled) return;
+    try {
+      const res = await fetch("/api/calendar");
+      const j = await res.json();
+      if (!j.ok) return;
+      const now = Date.now();
+      j.events.forEach(e => {
+        if (String(e.impact || "").toLowerCase() !== "high") return;
+        const t = new Date(e.date).getTime();
+        if (isNaN(t) || t <= now) return;
+        const mins = (t - now) / 60000;
+        if (mins > 2) return;
+        const key = e.date + "|" + e.title;
+        if (notifiedEvents.has(key)) return;
+        notifiedEvents.add(key);
+        const when = new Date(e.date).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+        const body = (e.country ? e.country + " · " : "") + e.title + " — " + when;
+        showAlert("High impact event in <2 min", body, key);
+      });
+    } catch (e) {}
+  }
+
+  const IMPACT_WORDS = [
+    "crashes", "crash", "plunge", "plunges", "plunged", "surge", "surges", "surged",
+    "soars", "soared", "jumps", "jumped", "jump", "tanks", "tanked", "slumps", "slumped",
+    "sinks", "sank", "rallies", "rallied", "rally", "selloff", "sell-off", "sell off",
+    "hammered", "collapse", "collapsed", "block deal", "stake sale", "ipo listing",
+    "downgrade", "upgrade", "rbi", "repo rate", "rate cut", "sebi", "scam", "fraud",
+    "fii", "dii", "gdp", "inflation", "q1 results", "q2 results", "q3 results", "q4 results",
+    "earnings", "record high", "record low", "52-week high", "52-week low", "upper circuit",
+    "lower circuit", "halt", "circuit", "bonus issue", "stock split", "buyback", "fund raise",
+    "qip", "preferential allotment", "merger", "acquisition", "bankruptcy"
+  ];
+  let seenFlash = new Set();
+  let flashLastRun = 0;
+
+  function currentWatchlist() {
+    return (localStorage.getItem("ffWatch") || "")
+      .split(",")
+      .map(s => s.trim().toLowerCase())
+      .filter(s => s.length > 1);
+  }
+
+  async function checkStockAlerts() {
+    if (!alertsEnabled) return;
+    if (Date.now() - flashLastRun < 10000) return;
+    flashLastRun = Date.now();
+    const watch = currentWatchlist();
+    try {
+      const res = await fetch("/api/flash");
+      const j = await res.json();
+      if (!j.ok) return;
+      const now = Date.now();
+      j.items.forEach(n => {
+        const key = n.link || n.title;
+        if (seenFlash.has(key)) return;
+        seenFlash.add(key);
+        const pub = new Date(n.published).getTime();
+        if (isNaN(pub) || now - pub > 7200000) return;
+        const title = (n.title || "").toLowerCase();
+        const hasWatch = watch.length > 0 && watch.some(w => title.includes(w));
+        const hasImpact = IMPACT_WORDS.some(w => title.includes(w));
+        if (!hasWatch && !hasImpact) return;
+        const body = n.title + (n.source ? "  ·  " + n.source : "");
+        showAlert("Indian Stock Alert", body, key);
+      });
+      if (seenFlash.size > 500) seenFlash = new Set();
+    } catch (e) {}
+  }
+
+  function setAlertUI() {
+    $("alertBtn").textContent = alertsEnabled ? "ALERTS ON" : "ALERTS OFF";
+    $("alertBtn").classList.toggle("active", alertsEnabled);
+  }
+
+  $("alertBtn").addEventListener("click", () => {
+    if (alertsEnabled) {
+      alertsEnabled = false;
+      localStorage.setItem("ffAlerts", "0");
+      setAlertUI();
+      return;
+    }
+    const enable = () => {
+      alertsEnabled = true;
+      localStorage.setItem("ffAlerts", "1");
+      notifiedEvents.clear();
+      seenFlash.clear();
+      setAlertUI();
+      checkAlerts();
+      checkStockAlerts();
+    };
+    if (!("Notification" in window)) { enable(); return; }
+    const req = Notification.requestPermission ? Notification.requestPermission() : Promise.resolve("granted");
+    if (req && req.then) req.then(enable);
+    else Notification.requestPermission(enable);
+  });
+  $("alertClose").addEventListener("click", () => $("alertBanner").classList.add("hidden"));
+  setAlertUI();
+
+  $("watchSave").addEventListener("click", () => {
+    localStorage.setItem("ffWatch", $("watchInput").value);
+    seenFlash.clear();
+    if (alertsEnabled) checkStockAlerts();
+  });
+  $("watchClear").addEventListener("click", () => {
+    localStorage.setItem("ffWatch", "");
+    $("watchInput").value = "";
+    seenFlash.clear();
+  });
+  $("watchInput").value = localStorage.getItem("ffWatch") || "";
+
+  function timeAgo(dateStr) {
+    const t = new Date(dateStr).getTime();
+    if (isNaN(t)) return esc(dateStr);
+    const diff = (Date.now() - t) / 1000;
+    if (diff < 60) return "just now";
+    if (diff < 3600) return Math.floor(diff / 60) + "m ago";
+    if (diff < 86400) return Math.floor(diff / 3600) + "h ago";
+    return Math.floor(diff / 86400) + "d ago";
+  }
+
+  function buildCatButtons() {
+    const wrap = $("newsCats");
+    wrap.innerHTML = "";
+    Object.keys(CATS).forEach(cat => {
+      const b = document.createElement("button");
+      b.className = "cat-btn" + (cat === newsCat ? " active" : "");
+      b.textContent = CATS[cat];
+      b.onclick = () => {
+        newsCat = cat;
+        buildCatButtons();
+        loadNews();
+      };
+      wrap.appendChild(b);
+    });
+    $("fxFilter").classList.toggle("hidden", newsCat !== "calendar");
+  }
+
+  function drawNews(items) {
+    const list = $("newsList");
+    if (!items.length) {
+      list.innerHTML = '<div class="empty">No news found</div>';
+      return;
+    }
+    list.innerHTML = "";
+    items.forEach(n => {
+      const card = document.createElement("div");
+      card.className = "news-card";
+      card.innerHTML = '<a href="' + esc(n.link) + '" target="_blank" rel="noopener">' + esc(n.title) + '</a>'
+        + (n.summary ? '<div class="news-summary">' + esc(n.summary) + '</div>' : "")
+        + '<div class="news-meta"><span class="news-src">' + esc(n.source || "NEWS") + '</span>'
+        + '<span>' + timeAgo(n.published) + '</span></div>';
+      list.appendChild(card);
+    });
+  }
+
+  async function loadNews() {
+    if (newsCat === "calendar") { loadCalendar(); return; }
+    const list = $("newsList");
+    list.innerHTML = '<div class="empty">Loading news…</div>';
+    try {
+      const res = await fetch("/api/news?category=" + encodeURIComponent(newsCat));
+      const j = await res.json();
+      if (!j.ok) throw new Error(j.error || "API error");
+      lastNewsLoad = Date.now();
+      drawNews(j.items);
+      showErr(null);
+    } catch (e) {
+      list.innerHTML = "";
+      showErr(e.message);
+    }
+  }
+
+  function impactBadge(lvl) {
+    const k = String(lvl || "").toLowerCase();
+    const cls = { high: "high", medium: "medium", low: "low" }[k] || "none";
+    return '<span class="imp ' + cls + '">' + esc(lvl || "—") + '</span>';
+  }
+
+  function fmtFxTime(iso) {
+    const d = new Date(iso);
+    if (isNaN(d.getTime())) return esc(iso);
+    return d.toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
+  }
+
+  function drawCalendar() {
+    const list = $("newsList");
+    if (!fxEvents.length) {
+      list.innerHTML = '<div class="empty">No events this week</div>';
+      return;
+    }
+    const filtered = fxEvents.filter(e => {
+      const lvl = String(e.impact || "").toLowerCase();
+      if (fxImpact === "high") return lvl === "high";
+      if (fxImpact === "med") return lvl === "high" || lvl === "medium";
+      return true;
+    });
+    if (!filtered.length) {
+      list.innerHTML = '<div class="empty">No events match this filter</div>';
+      return;
+    }
+    const now = Date.now();
+    let h = '<div class="full"><div class="tbl-title">ECONOMIC CALENDAR · FOREX FACTORY · THIS WEEK</div>'
+          + '<table><tr><th>TIME</th><th>CCY</th><th>EVENT</th><th>IMPACT</th><th>FORECAST</th><th>PREVIOUS</th></tr>';
+    filtered.forEach(e => {
+      const past = new Date(e.date).getTime() < now;
+      h += '<tr' + (past ? ' class="past"' : "") + '>'
+         + '<td>' + fmtFxTime(e.date) + '</td>'
+         + '<td><b>' + esc(e.country || "—") + '</b></td>'
+         + '<td class="sym">' + esc(e.title || "") + '</td>'
+         + '<td>' + impactBadge(e.impact) + '</td>'
+         + '<td>' + esc(e.forecast || "—") + '</td>'
+         + '<td>' + esc(e.previous || "—") + '</td></tr>';
+    });
+    h += '</table></div>';
+    list.innerHTML = h;
+  }
+
+  async function loadCalendar() {
+    const list = $("newsList");
+    list.innerHTML = '<div class="empty">Loading calendar…</div>';
+    try {
+      const res = await fetch("/api/calendar");
+      const j = await res.json();
+      if (!j.ok) throw new Error(j.error || "API error");
+      lastNewsLoad = Date.now();
+      fxEvents = j.events;
+      drawCalendar();
+      showErr(null);
+    } catch (e) {
+      list.innerHTML = "";
+      showErr(e.message);
+    }
+  }
+
+  function switchTab(view) {
+    const isNews = view === "news";
+    const isScanner = view === "scanner";
+    const isBreakout = view === "breakout";
+    const isRsi = view === "rsi";
+    $("tabSectors").classList.toggle("active", view === "sectors");
+    $("tabNews").classList.toggle("active", isNews);
+    $("tabScanner").classList.toggle("active", isScanner);
+    $("tabBreakout").classList.toggle("active", isBreakout);
+    $("tabRsi").classList.toggle("active", isRsi);
+    $("main").classList.toggle("news", isNews || isScanner || isBreakout || isRsi);
+    $("sectorsPanel").classList.toggle("hidden", isNews || isScanner || isBreakout || isRsi);
+    $("sectorsView").classList.toggle("hidden", isNews || isScanner || isBreakout || isRsi);
+    $("newsView").classList.toggle("hidden", !isNews);
+    $("scannerView").classList.toggle("hidden", !isScanner);
+    $("breakoutView").classList.toggle("hidden", !isBreakout);
+    $("rsiView").classList.toggle("hidden", !isRsi);
+    if (isNews && !newsLoaded) { newsLoaded = true; buildCatButtons(); loadNews(); }
+    if ((isScanner || isBreakout || isRsi) && !scannerInited) { scannerInited = true; initScanner(); }
+  }
+
+  $("tabSectors").addEventListener("click", () => switchTab("sectors"));
+  $("tabNews").addEventListener("click", () => switchTab("news"));
+  $("tabScanner").addEventListener("click", () => switchTab("scanner"));
+  $("tabBreakout").addEventListener("click", () => switchTab("breakout"));
+  $("tabRsi").addEventListener("click", () => switchTab("rsi"));
+  $("scanBtn").addEventListener("click", () => runScan());
+  $("boBtn").addEventListener("click", () => runBreakoutScan());
+  $("rsiBtn").addEventListener("click", () => runRsiScan());
+  $("rsiExportBtn").addEventListener("click", () => exportRsiList());
+  $("newsRefreshBtn").addEventListener("click", () => { buildCatButtons(); loadNews(); });
+  document.querySelectorAll("#fxFilter .cat-btn").forEach(b => {
+    b.onclick = () => {
+      fxImpact = b.dataset.fx;
+      document.querySelectorAll("#fxFilter .cat-btn").forEach(x => x.classList.toggle("active", x === b));
+      if (fxEvents.length) drawCalendar();
+    };
+  });
+
+  loadSectors();
+  buildCatButtons();
+  timer = setInterval(() => {
+    loadSectors();
+    if (alertsEnabled) { checkAlerts(); checkStockAlerts(); }
+    const newsVisible = !$("newsView").classList.contains("hidden");
+    if (newsVisible && newsLoaded && Date.now() - lastNewsLoad > 60000) loadNews();
+  }, S * 1000);
+</script>
+</body>
+</html>
