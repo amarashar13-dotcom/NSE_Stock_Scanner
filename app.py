@@ -21,8 +21,6 @@ os.makedirs(HIST_CACHE_DIR, exist_ok=True)
 
 app = Flask(__name__)
 
-nse_client = NSE(download_folder=DOWNLOAD_FOLDER)
-
 _tls = threading.local()
 SCAN_WORKERS = 6
 
@@ -401,7 +399,7 @@ def _sector_live_map(canonical):
     api_name = CANONICAL_TO_API.get(canonical)
     if api_name is None:
         raise ValueError("Unknown sector: %s" % canonical)
-    payload = nse_client.listEquityStocksByIndex(api_name)
+    payload = _client().listEquityStocksByIndex(api_name)
     return {
         s.get("symbol"): {
             "lastPrice": s.get("lastPrice"),
@@ -413,7 +411,7 @@ def _sector_live_map(canonical):
 
 
 def _all_sector_live_map():
-    payload = nse_client.listIndices()
+    payload = _client().listIndices()
     by_name = {d.get("index"): d for d in payload.get("data", [])}
     canonicals = [c for c, _api in SECTOR_INDICES if by_name.get(c) is not None]
 
@@ -515,7 +513,7 @@ def _rsi_scan_all():
 
 
 def _all_indices():
-    payload = nse_client.listIndices()
+    payload = _client().listIndices()
     by_name = {d.get("index"): d for d in payload.get("data", [])}
     sectors = []
     for canonical, _api in SECTOR_INDICES:
@@ -539,7 +537,7 @@ def _sector_stocks(canonical):
     api_name = CANONICAL_TO_API.get(canonical)
     if api_name is None:
         raise ValueError("Unknown sector: %s" % canonical)
-    payload = nse_client.listEquityStocksByIndex(api_name)
+    payload = _client().listEquityStocksByIndex(api_name)
     stocks = []
     for s in payload.get("data", []):
         if s.get("series") != "EQ":
@@ -663,7 +661,7 @@ def api_history():
         rows = _cached(
             "hist:" + symbol + ":" + str(days),
             300,
-            lambda: nse_client.fetch_equity_historical_data(
+            lambda: _client().fetch_equity_historical_data(
                 symbol, from_date, to_date
             ),
         )
