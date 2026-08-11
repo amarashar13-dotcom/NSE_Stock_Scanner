@@ -3,3 +3,5 @@ __pycache__/
 .nse_cache/
 start.bat
 start.zip
+start_public.bat
+cloudflared.exe

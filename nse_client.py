@@ -1,3 +1,4 @@
+import os
 import threading
 import time
 from datetime import date, timedelta
@@ -13,6 +14,10 @@ class NseClient:
       - listIndices()                  -> {"data": [...], "timestamp", "marketStatus"}
       - listEquityStocksByIndex(name)  -> {"data": [...], "marketStatus", "timestamp"}
       - fetch_equity_historical_data() -> list of rows (chronological, oldest first)
+
+    If the NSE_PROXY environment variable is set (e.g. an Indian IP proxy),
+    all requests are routed through it. NSE blocks foreign datacenter IPs, so
+    set NSE_PROXY to an Indian-resident IP to make this work from cloud hosts.
     """
 
     BASE_URL = "https://www.nseindia.com"
@@ -22,7 +27,13 @@ class NseClient:
 
     def __init__(self, download_folder=None, timeout=20):
         self.timeout = timeout
-        self._session = cffi_requests.Session(impersonate="chrome")
+        proxy = os.environ.get("NSE_PROXY", "").strip()
+        if proxy:
+            self._session = cffi_requests.Session(
+                impersonate="chrome", proxies={"http": proxy, "https": proxy}
+            )
+        else:
+            self._session = cffi_requests.Session(impersonate="chrome")
         self._lock = threading.Lock()
         self._last_req = 0.0
         self._handshaked = False
