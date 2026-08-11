@@ -11,7 +11,7 @@ from datetime import date, timedelta
 import requests
 from flask import Flask, jsonify, render_template, request
 
-from nse import NSE
+from nse_client import NseClient
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DOWNLOAD_FOLDER = os.path.join(BASE_DIR, ".nse_cache")
@@ -27,7 +27,7 @@ SCAN_WORKERS = 6
 
 def _client():
     if not hasattr(_tls, "client"):
-        _tls.client = NSE(download_folder=DOWNLOAD_FOLDER, server=True)
+        _tls.client = NseClient()
     return _tls.client
 
 
