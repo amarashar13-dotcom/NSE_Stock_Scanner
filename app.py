@@ -27,7 +27,7 @@ SCAN_WORKERS = 6
 
 def _client():
     if not hasattr(_tls, "client"):
-        _tls.client = NSE(download_folder=DOWNLOAD_FOLDER)
+        _tls.client = NSE(download_folder=DOWNLOAD_FOLDER, server=True)
     return _tls.client
 
 
