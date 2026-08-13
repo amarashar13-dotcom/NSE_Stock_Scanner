@@ -641,8 +641,7 @@
       : "Scanning constituents (takes ~1 min first time)…";
     $("boTable").innerHTML = '<tr><td class="empty" colspan="10">Scanning…</td></tr>';
     try {
-      const res = await fetch("/api/breakout?name=" + encodeURIComponent(name));
-      const j = await res.json();
+      const j = await api("/api/breakout?name=" + encodeURIComponent(name));
       if (!j.ok) throw new Error(j.error || "API error");
       drawBreakoutTable(j.signals);
       lastBreakout = j.signals;
@@ -693,8 +692,7 @@
     $("darvasBdTable").innerHTML = '<tr><td class="empty" colspan="10">Scanning…</td></tr>';
     $("darvasInTable").innerHTML = '<tr><td class="empty" colspan="10">Scanning…</td></tr>';
     try {
-      const res = await fetch("/api/darvas?name=" + encodeURIComponent(name));
-      const j = await res.json();
+      const j = await api("/api/darvas?name=" + encodeURIComponent(name));
       if (!j.ok) throw new Error(j.error || "API error");
       drawDarvasTable($("darvasBoTable"), j.breakout, "breakout");
       drawDarvasTable($("darvasBdTable"), j.breakdown, "breakdown");
@@ -870,8 +868,7 @@
     $("rsiBuyTable").innerHTML = '<tr><td class="empty" colspan="7">Scanning…</td></tr>';
     $("rsiSellTable").innerHTML = '<tr><td class="empty" colspan="7">Scanning…</td></tr>';
     try {
-      const res = await fetch("/api/rsiscan?name=" + encodeURIComponent(name));
-      const j = await res.json();
+      const j = await api("/api/rsiscan?name=" + encodeURIComponent(name));
       if (!j.ok) throw new Error(j.error || "API error");
       drawRsiTable($("rsiBuyTable"), j.buy);
       drawRsiTable($("rsiSellTable"), j.sell);
@@ -920,8 +917,7 @@
     $("ema5UpTable").innerHTML = '<tr><td class="empty" colspan="8">Scanning…</td></tr>';
     $("ema5DnTable").innerHTML = '<tr><td class="empty" colspan="8">Scanning…</td></tr>';
     try {
-      const res = await fetch("/api/ema5scan?name=" + encodeURIComponent(name));
-      const j = await res.json();
+      const j = await api("/api/ema5scan?name=" + encodeURIComponent(name));
       if (!j.ok) throw new Error(j.error || "API error");
       drawEma5Table($("ema5UpTable"), j.uptrend, "uptrend");
       drawEma5Table($("ema5DnTable"), j.downtrend, "downtrend");
@@ -951,8 +947,7 @@
     $("ema1UpTable").innerHTML = '<tr><td class="empty" colspan="8">Scanning…</td></tr>';
     $("ema1DnTable").innerHTML = '<tr><td class="empty" colspan="8">Scanning…</td></tr>';
     try {
-      const res = await fetch("/api/ema1scan?name=" + encodeURIComponent(name));
-      const j = await res.json();
+      const j = await api("/api/ema1scan?name=" + encodeURIComponent(name));
       if (!j.ok) throw new Error(j.error || "API error");
       drawEma5Table($("ema1UpTable"), j.uptrend, "uptrend");
       drawEma5Table($("ema1DnTable"), j.downtrend, "downtrend");
@@ -1000,8 +995,7 @@
     $("emaCrossUpTable").innerHTML = '<tr><td class="empty" colspan="7">Scanning…</td></tr>';
     $("emaCrossDnTable").innerHTML = '<tr><td class="empty" colspan="7">Scanning…</td></tr>';
     try {
-      const res = await fetch("/api/emacross5scan?name=" + encodeURIComponent(name));
-      const j = await res.json();
+      const j = await api("/api/emacross5scan?name=" + encodeURIComponent(name));
       if (!j.ok) throw new Error(j.error || "API error");
       drawEmaCrossTable($("emaCrossUpTable"), j.bullish, "bullish");
       drawEmaCrossTable($("emaCrossDnTable"), j.bearish, "bearish");
@@ -1051,8 +1045,7 @@
     $("emaSqzUpTable").innerHTML = '<tr><td class="empty" colspan="9">Scanning…</td></tr>';
     $("emaSqzDnTable").innerHTML = '<tr><td class="empty" colspan="9">Scanning…</td></tr>';
     try {
-      const res = await fetch("/api/emasqz1scan?name=" + encodeURIComponent(name));
-      const j = await res.json();
+      const j = await api("/api/emasqz1scan?name=" + encodeURIComponent(name));
       if (!j.ok) throw new Error(j.error || "API error");
       drawEmaSqzTable($("emaSqzUpTable"), j.buy, "buy");
       drawEmaSqzTable($("emaSqzDnTable"), j.sell, "sell");
@@ -1103,8 +1096,7 @@
     $("scanBullTable").innerHTML = '<tr><td class="empty" colspan="7">Scanning…</td></tr>';
     $("scanBearTable").innerHTML = '<tr><td class="empty" colspan="7">Scanning…</td></tr>';
     try {
-      const res = await fetch("/api/scan?name=" + encodeURIComponent(name));
-      const j = await res.json();
+      const j = await api("/api/scan?name=" + encodeURIComponent(name));
       if (!j.ok) throw new Error(j.error || "API error");
       drawScanTable($("scanBullTable"), j.bullish);
       drawScanTable($("scanBearTable"), j.bearish);
@@ -1153,6 +1145,30 @@
     t.innerHTML = h;
   }
 
+  async function api(url, timeoutMs) {
+    const ctrl = (typeof AbortController !== "undefined" && timeoutMs) ? new AbortController() : null;
+    if (ctrl) setTimeout(() => ctrl.abort(), timeoutMs);
+    let res;
+    try {
+      res = await fetch(url, ctrl ? { signal: ctrl.signal } : undefined);
+    } catch (e) {
+      throw new Error("Network error: cannot reach server");
+    }
+    if (!res.ok) {
+      let msg = "Server error (" + res.status + ")";
+      try {
+        const err = await res.json();
+        if (err && err.error) msg = err.error;
+      } catch (e) {}
+      throw new Error(msg);
+    }
+    try {
+      return await res.json();
+    } catch (e) {
+      throw new Error("Invalid response from server");
+    }
+  }
+
   function showErr(msg) {
     const b = $("errBanner");
     if (msg) { b.textContent = "⚠ " + msg; b.classList.remove("hidden"); }
@@ -1161,8 +1177,7 @@
 
   async function loadSectors() {
     try {
-      const res = await fetch("/api/sectors");
-      const j = await res.json();
+      const j = await api("/api/sectors");
       if (!j.ok) throw new Error(j.error || "API error");
       const badge = $("marketBadge");
       const status = (j.marketStatus || "").toLowerCase();
@@ -1190,8 +1205,7 @@
   async function loadSector() {
     if (!selected) return;
     try {
-      const res = await fetch("/api/sector?name=" + encodeURIComponent(selected));
-      const j = await res.json();
+      const j = await api("/api/sector?name=" + encodeURIComponent(selected));
       if (!j.ok) throw new Error(j.error || "API error");
       drawTable($("gainersTable"), j.gainers, true);
       drawTable($("losersTable"), j.losers, true);
@@ -1257,8 +1271,7 @@
   async function checkAlerts() {
     if (!alertsEnabled) return;
     try {
-      const res = await fetch("/api/calendar");
-      const j = await res.json();
+      const j = await api("/api/calendar");
       if (!j.ok) return;
       const now = Date.now();
       j.events.forEach(e => {
@@ -1304,8 +1317,7 @@
     flashLastRun = Date.now();
     const watch = currentWatchlist();
     try {
-      const res = await fetch("/api/flash");
-      const j = await res.json();
+      const j = await api("/api/flash");
       if (!j.ok) return;
       const now = Date.now();
       j.items.forEach(n => {
@@ -1416,8 +1428,7 @@
     const list = $("newsList");
     list.innerHTML = '<div class="empty">Loading news…</div>';
     try {
-      const res = await fetch("/api/news?category=" + encodeURIComponent(newsCat));
-      const j = await res.json();
+      const j = await api("/api/news?category=" + encodeURIComponent(newsCat));
       if (!j.ok) throw new Error(j.error || "API error");
       lastNewsLoad = Date.now();
       drawNews(j.items);
@@ -1477,8 +1488,7 @@
     const list = $("newsList");
     list.innerHTML = '<div class="empty">Loading calendar…</div>';
     try {
-      const res = await fetch("/api/calendar");
-      const j = await res.json();
+      const j = await api("/api/calendar");
       if (!j.ok) throw new Error(j.error || "API error");
       lastNewsLoad = Date.now();
       fxEvents = j.events;

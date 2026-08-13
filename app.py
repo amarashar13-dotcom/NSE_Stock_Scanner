@@ -21,6 +21,22 @@ os.makedirs(HIST_CACHE_DIR, exist_ok=True)
 
 app = Flask(__name__)
 
+
+@app.errorhandler(400)
+@app.errorhandler(404)
+@app.errorhandler(405)
+@app.errorhandler(500)
+@app.errorhandler(Exception)
+def _handle_error(e):
+    if request.path.startswith("/api/"):
+        code = getattr(e, "code", 500)
+        try:
+            code = int(code)
+        except (TypeError, ValueError):
+            code = 500
+        return jsonify({"ok": False, "error": str(e) or "Server error"}), code
+    return e
+
 _tls = threading.local()
 SCAN_WORKERS = 6
 
