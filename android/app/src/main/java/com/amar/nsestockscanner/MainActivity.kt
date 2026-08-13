@@ -25,7 +25,7 @@ import androidx.core.content.ContextCompat
 class MainActivity : ComponentActivity() {
 
     companion object {
-        const val DEFAULT_URL = "https://nse-stock-scanner.onrender.com"
+        const val DEFAULT_URL = "https://nse-stock-scanner-dbbc.onrender.com"
         private const val PREFS = "nse"
         private const val KEY_URL = "url"
     }
