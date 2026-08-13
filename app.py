@@ -54,6 +54,72 @@ def _hist_rows(symbol, from_date, to_date):
         pass
     return rows
 
+
+TOKEN_CACHE_FILE = os.path.join(DOWNLOAD_FOLDER, "tokens.json")
+_token_cache = {}
+_token_cache_lock = threading.Lock()
+_intraday_cache = {}
+_intraday_cache_lock = threading.Lock()
+INTRADAY_TTL = 300
+
+
+def _load_token_cache():
+    global _token_cache
+    try:
+        if os.path.exists(TOKEN_CACHE_FILE):
+            with open(TOKEN_CACHE_FILE, "r", encoding="utf-8") as f:
+                _token_cache = json.load(f)
+    except Exception:
+        _token_cache = {}
+
+
+def _save_token_cache():
+    try:
+        tmp = TOKEN_CACHE_FILE + ".tmp"
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump(_token_cache, f)
+        os.replace(tmp, TOKEN_CACHE_FILE)
+    except Exception:
+        pass
+
+
+_load_token_cache()
+
+
+def _charting_token(symbol, client=None):
+    client = client or _client()
+    with _token_cache_lock:
+        cached = _token_cache.get(symbol)
+    if cached:
+        return cached
+    token = client.get_charting_token(symbol)
+    if token:
+        with _token_cache_lock:
+            _token_cache[symbol] = token
+            _save_token_cache()
+    return token
+
+
+def _intraday_rows(symbol, fetch_fn):
+    now = time.time()
+    key = (symbol, fetch_fn.__name__)
+    with _intraday_cache_lock:
+        hit = _intraday_cache.get(key)
+        if hit and now - hit[0] < INTRADAY_TTL:
+            return hit[1]
+    rows = fetch_fn(symbol, _charting_token(symbol))
+    with _intraday_cache_lock:
+        _intraday_cache[key] = (now, rows)
+    return rows
+
+
+def _intraday_rows_5(symbol):
+    return _intraday_rows(symbol, _client().fetch_intraday_5min)
+
+
+def _intraday_rows_1(symbol):
+    return _intraday_rows(symbol, _client().fetch_intraday_1min)
+
 # (canonical index name shown on the website, name used by the constituents API)
 SECTOR_INDICES = [
     ("NIFTY 50", "NIFTY 50"),
@@ -347,6 +413,220 @@ def _breakout_scan_all():
     return _breakout_scan_symbols(list(_all_sector_live_map().keys()))
 
 
+# Darvas box scanner settings.
+DARVAS_LOOKBACK = 20        # new-high lookback in trading days
+DARVAS_MIN_PULLBACK = 3     # consecutive non-new-high days that complete a box
+DARVAS_MAX_WIDTH_PCT = 25.0 # widest acceptable box
+DARVAS_VOL_MULT = 1.5       # breakout volume vs the prior 20-day average
+DARVAS_MAX_AGE = 8          # fresh breakout / box age in trading days
+DARVAS_MIN_PRICE = 50.0
+
+
+def _darvas_scan_one(client, symbol, from_date, to_date):
+    try:
+        rows = _hist_rows(symbol, from_date, to_date)
+        O, H, L, C, V = [], [], [], [], []
+        for r in rows:
+            o = r.get("chOpeningPrice")
+            h = r.get("chTradeHighPrice")
+            lo = r.get("chTradeLowPrice")
+            cl = r.get("chClosingPrice")
+            if o is None or h is None or lo is None or cl is None:
+                continue
+            O.append(float(o))
+            H.append(float(h))
+            L.append(float(lo))
+            C.append(float(cl))
+            V.append(float(r.get("chTotTradedQty") or 0))
+        n = len(C)
+        if n < 230:
+            return symbol, None
+        price = C[-1]
+        if price < DARVAS_MIN_PRICE:
+            return symbol, None
+
+        # Bullish boxes: a new 20-day high followed by a 3-day pullback.
+        box_top = box_bottom = None
+        box_idx = last_high_idx = None
+        pullback = 0
+        for i in range(DARVAS_LOOKBACK, n):
+            if H[i] > max(H[i - DARVAS_LOOKBACK:i]):
+                last_high_idx = i
+                pullback = 0
+            elif last_high_idx is not None:
+                pullback += 1
+                if pullback == DARVAS_MIN_PULLBACK:
+                    box_top = H[last_high_idx]
+                    box_bottom = min(L[i - DARVAS_MIN_PULLBACK + 1:i + 1])
+                    box_idx = i
+                    last_high_idx = None
+
+        # Bearish boxes: a new 20-day low followed by a 3-day bounce.
+        brk_top = brk_bottom = None
+        brk_idx = last_low_idx = None
+        pullback = 0
+        for i in range(DARVAS_LOOKBACK, n):
+            if L[i] < min(L[i - DARVAS_LOOKBACK:i]):
+                last_low_idx = i
+                pullback = 0
+            elif last_low_idx is not None:
+                pullback += 1
+                if pullback == DARVAS_MIN_PULLBACK:
+                    brk_bottom = L[last_low_idx]
+                    brk_top = max(H[i - DARVAS_MIN_PULLBACK + 1:i + 1])
+                    brk_idx = i
+                    last_low_idx = None
+
+        change_pct = round((price - C[-2]) / C[-2] * 100, 2) if C[-2] else 0
+        ema200 = _ema(C, 200)[-1]
+        rsi = _rsi(C, 14)
+        high252 = max(H[-252:])
+        dist52 = 100 * (high252 - price) / max(high252, 0.01)
+
+        row = {
+            "symbol": symbol,
+            "price": round(price, 2),
+            "changePct": change_pct,
+            "boxTop": None,
+            "boxBottom": None,
+            "boxWidthPct": 0,
+            "breakoutAge": None,
+            "volRatio": None,
+            "rsi": round(rsi, 1),
+            "ema200": round(ema200, 2),
+            "distHigh52Pct": round(dist52, 2),
+            "entry": None,
+            "stop": None,
+            "target1": None,
+            "target2": None,
+            "target3": None,
+            "riskPct": 0,
+            "signal": None,
+        }
+
+        if box_idx is not None and (box_top and box_bottom):
+            breakout_j = None
+            for j in range(box_idx + 1, n):
+                if C[j] > box_top:
+                    breakout_j = j
+                    break
+            width_pct = 100 * (box_top - box_bottom) / max(box_bottom, 0.01)
+            risk = max(box_top - box_bottom, 0.01)
+            box_age = n - 1 - box_idx
+            if breakout_j is not None:
+                vol_ratio = V[breakout_j] / max(_slice_mean(V, breakout_j - 20, breakout_j), 1)
+                age = n - 1 - breakout_j
+                row["volRatio"] = round(vol_ratio, 2)
+                row["breakoutAge"] = age
+                if (
+                    age <= DARVAS_MAX_AGE
+                    and price >= box_top
+                    and vol_ratio >= DARVAS_VOL_MULT
+                    and width_pct <= DARVAS_MAX_WIDTH_PCT
+                    and price > ema200
+                ):
+                    row.update({
+                        "boxTop": round(box_top, 2),
+                        "boxBottom": round(box_bottom, 2),
+                        "boxWidthPct": round(width_pct, 2),
+                        "entry": round(box_top, 2),
+                        "stop": round(box_bottom, 2),
+                        "target1": round(box_top + risk, 2),
+                        "target2": round(box_top + 2 * risk, 2),
+                        "target3": round(box_top + 3 * risk, 2),
+                        "riskPct": round(100 * risk / box_top, 2) if box_top else 0,
+                        "signal": "BREAKOUT",
+                    })
+            elif (
+                box_age <= DARVAS_MAX_AGE
+                and box_bottom <= price <= box_top
+                and width_pct <= DARVAS_MAX_WIDTH_PCT
+                and price > ema200
+            ):
+                row.update({
+                    "boxTop": round(box_top, 2),
+                    "boxBottom": round(box_bottom, 2),
+                    "boxWidthPct": round(width_pct, 2),
+                    "entry": round(box_top, 2),
+                    "stop": round(box_bottom, 2),
+                    "target1": round(box_top + risk, 2),
+                    "target2": round(box_top + 2 * risk, 2),
+                    "target3": round(box_top + 3 * risk, 2),
+                    "riskPct": round(100 * risk / box_top, 2) if box_top else 0,
+                    "signal": "INBOX",
+                })
+
+        if brk_idx is not None and (brk_top and brk_bottom):
+            breakdown_j = None
+            for j in range(brk_idx + 1, n):
+                if C[j] < brk_bottom:
+                    breakdown_j = j
+                    break
+            width_pct = 100 * (brk_top - brk_bottom) / max(brk_bottom, 0.01)
+            risk = max(brk_top - brk_bottom, 0.01)
+            if breakdown_j is not None:
+                vol_ratio = V[breakdown_j] / max(_slice_mean(V, breakdown_j - 20, breakdown_j), 1)
+                age = n - 1 - breakdown_j
+                row["volRatio"] = round(vol_ratio, 2)
+                row["breakoutAge"] = age
+                if (
+                    age <= DARVAS_MAX_AGE
+                    and price <= brk_bottom
+                    and width_pct <= DARVAS_MAX_WIDTH_PCT
+                    and price < ema200
+                ):
+                    row.update({
+                        "boxTop": round(brk_top, 2),
+                        "boxBottom": round(brk_bottom, 2),
+                        "boxWidthPct": round(width_pct, 2),
+                        "entry": round(brk_bottom, 2),
+                        "stop": round(brk_top, 2),
+                        "target1": round(brk_bottom - risk, 2),
+                        "target2": round(brk_bottom - 2 * risk, 2),
+                        "target3": round(brk_bottom - 3 * risk, 2),
+                        "riskPct": round(100 * risk / brk_bottom, 2) if brk_bottom else 0,
+                        "signal": "BREAKDOWN",
+                    })
+
+        return symbol, row
+    except Exception:
+        raise
+
+
+def _darvas_scan_symbols(symbols):
+    to_date = date.today()
+    from_date = to_date - timedelta(days=700)
+
+    def worker(sym):
+        try:
+            return _darvas_scan_one(_client(), sym, from_date, to_date)
+        except Exception:
+            return sym, _FAILED
+
+    results, _failed = _parallel_scan(symbols, worker)
+    breakout = sorted(
+        (r for r in results.values() if r and r["signal"] == "BREAKOUT"),
+        key=lambda r: (r["breakoutAge"] or 0, -(r["volRatio"] or 0)),
+    )
+    inbox = sorted(
+        (r for r in results.values() if r and r["signal"] == "INBOX"),
+        key=lambda r: -r["boxWidthPct"],
+    )
+    breakdown = sorted(
+        (r for r in results.values() if r and r["signal"] == "BREAKDOWN"),
+        key=lambda r: (r["breakoutAge"] or 0, -(r["volRatio"] or 0)),
+    )
+    return breakout, inbox, breakdown, len(symbols), len(results)
+
+
+def _darvas_scan_sector(canonical):
+    return _darvas_scan_symbols(list(_sector_live_map(canonical).keys()))
+
+
+def _darvas_scan_all():
+    return _darvas_scan_symbols(list(_all_sector_live_map().keys()))
+
+
 def _scan_one(client, symbol, from_date, to_date, live):
     try:
         rows = _hist_rows(symbol, from_date, to_date)
@@ -510,6 +790,229 @@ def _rsi_scan_sector(canonical):
 
 def _rsi_scan_all():
     return _rsi_scan_symbols(_all_sector_live_map())
+
+
+# Minimum number of 5-minute bars required for a meaningful EMA 200 (~3.5 sessions).
+EMA5_MIN_BARS = 300
+# Minimum number of 1-minute bars required for a meaningful EMA 200 (~4 sessions).
+EMA1_MIN_BARS = 1500
+
+
+def _ema_between_one(client, symbol, live, rows_fn, min_bars):
+    try:
+        rows = rows_fn(symbol)
+        closes = [float(r["close"]) for r in rows if r.get("close") is not None]
+        closes = closes[-2000:]
+        n = len(closes)
+        if n < min_bars:
+            return symbol, None
+        ema100s = _ema(closes, 100)
+        ema200s = _ema(closes, 200)
+        ema100, ema200 = ema100s[-1], ema200s[-1]
+        lo, hi = min(ema100, ema200), max(ema100, ema200)
+        price = closes[-1]
+        prev = closes[-2]
+        if live and live.get("lastPrice"):
+            price = float(live["lastPrice"])
+        change_pct = live.get("pChange") if live else None
+        if change_pct is None:
+            change_pct = round((price - prev) / prev * 100, 2) if prev else 0
+        else:
+            change_pct = round(float(change_pct), 2)
+        band_width_pct = (hi - lo) / lo * 100 if lo else 0
+        pos_pct = (price - lo) / (hi - lo) * 100 if hi > lo else 50
+        row = {
+            "symbol": symbol,
+            "price": round(price, 2),
+            "changePct": change_pct,
+            "ema100": round(ema100, 2),
+            "ema200": round(ema200, 2),
+            "bandWidthPct": round(band_width_pct, 2),
+            "posPct": round(pos_pct, 1),
+            "uptrend": bool(ema100 > ema200),
+            "bars": n,
+            "signal": bool(lo < price < hi),
+        }
+        return symbol, row
+    except Exception:
+        raise
+
+
+def _ema_between_scan_symbols(live_map, rows_fn, min_bars):
+    symbols = list(live_map.keys())
+
+    def worker(sym):
+        try:
+            return _ema_between_one(_client(), sym, live_map.get(sym), rows_fn, min_bars)
+        except Exception:
+            return sym, _FAILED
+
+    results, _failed = _parallel_scan(symbols, worker)
+    signals = [r for r in results.values() if r["signal"]]
+    uptrend = sorted((r for r in signals if r["uptrend"]), key=lambda r: -r["changePct"])
+    downtrend = sorted((r for r in signals if not r["uptrend"]), key=lambda r: -r["changePct"])
+    return uptrend, downtrend, len(symbols), len(results)
+
+
+def _ema_between_scan_sector(canonical, rows_fn, min_bars):
+    return _ema_between_scan_symbols(_sector_live_map(canonical), rows_fn, min_bars)
+
+
+def _ema_between_scan_all(rows_fn, min_bars):
+    return _ema_between_scan_symbols(_all_sector_live_map(), rows_fn, min_bars)
+
+
+# Minimum number of 5-minute bars required for a meaningful EMA 100 cross.
+EMA_CROSS5_MIN_BARS = 150
+
+
+def _ema_cross5_one(client, symbol, live, rows_fn):
+    try:
+        rows = rows_fn(symbol)
+        closes = [float(r["close"]) for r in rows if r.get("close") is not None]
+        closes = closes[-2000:]
+        n = len(closes)
+        if n < EMA_CROSS5_MIN_BARS:
+            return symbol, None
+        ema10s = _ema(closes, 10)
+        ema100s = _ema(closes, 100)
+        p10, p100 = ema10s[-2], ema100s[-2]
+        c10, c100 = ema10s[-1], ema100s[-1]
+        if p10 <= p100 and c10 > c100:
+            cross = "BULLISH"
+        elif p10 >= p100 and c10 < c100:
+            cross = "BEARISH"
+        else:
+            return symbol, None
+        price = closes[-1]
+        prev = closes[-2]
+        if live and live.get("lastPrice"):
+            price = float(live["lastPrice"])
+        change_pct = live.get("pChange") if live else None
+        if change_pct is None:
+            change_pct = round((price - prev) / prev * 100, 2) if prev else 0
+        else:
+            change_pct = round(float(change_pct), 2)
+        gap_pct = (c10 - c100) / c100 * 100 if c100 else 0
+        row = {
+            "symbol": symbol,
+            "price": round(price, 2),
+            "changePct": change_pct,
+            "ema10": round(c10, 2),
+            "ema100": round(c100, 2),
+            "gapPct": round(gap_pct, 2),
+            "cross": cross,
+            "bars": n,
+        }
+        return symbol, row
+    except Exception:
+        raise
+
+
+def _ema_cross5_scan_symbols(live_map, rows_fn):
+    symbols = list(live_map.keys())
+
+    def worker(sym):
+        try:
+            return _ema_cross5_one(_client(), sym, live_map.get(sym), rows_fn)
+        except Exception:
+            return sym, _FAILED
+
+    results, _failed = _parallel_scan(symbols, worker)
+    signals = [r for r in results.values() if r]
+    bullish = sorted((r for r in signals if r["cross"] == "BULLISH"), key=lambda r: -r["changePct"])
+    bearish = sorted((r for r in signals if r["cross"] == "BEARISH"), key=lambda r: -r["changePct"])
+    return bullish, bearish, len(symbols), len(results)
+
+
+def _ema_cross5_scan_sector(canonical, rows_fn):
+    return _ema_cross5_scan_symbols(_sector_live_map(canonical), rows_fn)
+
+
+def _ema_cross5_scan_all(rows_fn):
+    return _ema_cross5_scan_symbols(_all_sector_live_map(), rows_fn)
+
+
+# Minimum number of 1-minute bars required for a meaningful EMA 200.
+EMA_SQZ_MIN_BARS = 300
+# Max % spread between the EMAs for a squeeze.
+EMA_SQZ_PCT = 0.5
+# Bars back used to measure the fast-EMA slope.
+EMA_SQZ_SLOPE_BARS = 3
+
+
+def _ema_sqz_one(client, symbol, live, rows_fn):
+    try:
+        rows = rows_fn(symbol)
+        closes = [float(r["close"]) for r in rows if r.get("close") is not None]
+        closes = closes[-2000:]
+        n = len(closes)
+        if n < EMA_SQZ_MIN_BARS or n < EMA_SQZ_SLOPE_BARS + 2:
+            return symbol, None
+        ema20s = _ema(closes, 20)
+        ema50s = _ema(closes, 50)
+        ema100s = _ema(closes, 100)
+        ema200s = _ema(closes, 200)
+        c20, c50, c100, c200 = ema20s[-1], ema50s[-1], ema100s[-1], ema200s[-1]
+        if not (c20 > 0 and c50 > 0 and c100 > 0 and c200 > 0):
+            return symbol, None
+        spread_pct = (max(c20, c50, c100, c200) - min(c20, c50, c100, c200)) / min(c20, c50, c100, c200) * 100
+        if spread_pct > EMA_SQZ_PCT:
+            return symbol, None
+        slope_up = ema20s[-1] > ema20s[-1 - EMA_SQZ_SLOPE_BARS]
+        slope_down = ema20s[-1] < ema20s[-1 - EMA_SQZ_SLOPE_BARS]
+        if not slope_up and not slope_down:
+            return symbol, None
+        signal = "BUY" if slope_up else "SELL"
+        price = closes[-1]
+        prev = closes[-2]
+        if live and live.get("lastPrice"):
+            price = float(live["lastPrice"])
+        change_pct = live.get("pChange") if live else None
+        if change_pct is None:
+            change_pct = round((price - prev) / prev * 100, 2) if prev else 0
+        else:
+            change_pct = round(float(change_pct), 2)
+        row = {
+            "symbol": symbol,
+            "price": round(price, 2),
+            "changePct": change_pct,
+            "ema20": round(c20, 2),
+            "ema50": round(c50, 2),
+            "ema100": round(c100, 2),
+            "ema200": round(c200, 2),
+            "spreadPct": round(spread_pct, 2),
+            "slope": "UP" if slope_up else "DOWN",
+            "signal": signal,
+            "bars": n,
+        }
+        return symbol, row
+    except Exception:
+        raise
+
+
+def _ema_sqz_scan_symbols(live_map, rows_fn):
+    symbols = list(live_map.keys())
+
+    def worker(sym):
+        try:
+            return _ema_sqz_one(_client(), sym, live_map.get(sym), rows_fn)
+        except Exception:
+            return sym, _FAILED
+
+    results, _failed = _parallel_scan(symbols, worker)
+    signals = [r for r in results.values() if r]
+    buy = sorted((r for r in signals if r["signal"] == "BUY"), key=lambda r: -r["changePct"])
+    sell = sorted((r for r in signals if r["signal"] == "SELL"), key=lambda r: r["changePct"])
+    return buy, sell, len(symbols), len(results)
+
+
+def _ema_sqz_scan_sector(canonical, rows_fn):
+    return _ema_sqz_scan_symbols(_sector_live_map(canonical), rows_fn)
+
+
+def _ema_sqz_scan_all(rows_fn):
+    return _ema_sqz_scan_symbols(_all_sector_live_map(), rows_fn)
 
 
 def _all_indices():
@@ -766,6 +1269,35 @@ def api_breakout():
         return jsonify({"ok": False, "error": "Scan error: %s" % e}), 502
 
 
+@app.route("/api/darvas")
+def api_darvas():
+    name = request.args.get("name", "").strip()
+    if name != "ALL" and name not in CANONICAL_TO_API:
+        return jsonify({"ok": False, "error": "Unknown sector"}), 400
+    try:
+        start = time.time()
+        if name == "ALL":
+            breakout, inbox, breakdown, total, scanned = _cached(
+                "darvas:ALL", 900, _darvas_scan_all
+            )
+        else:
+            breakout, inbox, breakdown, total, scanned = _cached(
+                "darvas:" + name, 900, lambda: _darvas_scan_sector(name)
+            )
+        return jsonify({
+            "ok": True,
+            "sector": name,
+            "breakout": breakout,
+            "breakdown": breakdown,
+            "inbox": inbox,
+            "total": total,
+            "scanned": scanned,
+            "elapsed": round(time.time() - start, 1),
+        })
+    except Exception as e:
+        return jsonify({"ok": False, "error": "Scan error: %s" % e}), 502
+
+
 @app.route("/api/rsiscan")
 def api_rsiscan():
     name = request.args.get("name", "").strip()
@@ -780,6 +1312,118 @@ def api_rsiscan():
         else:
             buy, sell, total, scanned = _cached(
                 "rsi:" + name, 900, lambda: _rsi_scan_sector(name)
+            )
+        return jsonify({
+            "ok": True,
+            "sector": name,
+            "buy": buy,
+            "sell": sell,
+            "total": total,
+            "scanned": scanned,
+            "elapsed": round(time.time() - start, 1),
+        })
+    except Exception as e:
+        return jsonify({"ok": False, "error": "Scan error: %s" % e}), 502
+
+
+@app.route("/api/ema5scan")
+def api_ema5scan():
+    name = request.args.get("name", "").strip()
+    if name != "ALL" and name not in CANONICAL_TO_API:
+        return jsonify({"ok": False, "error": "Unknown sector"}), 400
+    try:
+        start = time.time()
+        if name == "ALL":
+            uptrend, downtrend, total, scanned = _cached(
+                "ema5:ALL", 300, lambda: _ema_between_scan_all(_intraday_rows_5, EMA5_MIN_BARS)
+            )
+        else:
+            uptrend, downtrend, total, scanned = _cached(
+                "ema5:" + name, 300, lambda: _ema_between_scan_sector(name, _intraday_rows_5, EMA5_MIN_BARS)
+            )
+        return jsonify({
+            "ok": True,
+            "sector": name,
+            "uptrend": uptrend,
+            "downtrend": downtrend,
+            "total": total,
+            "scanned": scanned,
+            "elapsed": round(time.time() - start, 1),
+        })
+    except Exception as e:
+        return jsonify({"ok": False, "error": "Scan error: %s" % e}), 502
+
+
+@app.route("/api/ema1scan")
+def api_ema1scan():
+    name = request.args.get("name", "").strip()
+    if name != "ALL" and name not in CANONICAL_TO_API:
+        return jsonify({"ok": False, "error": "Unknown sector"}), 400
+    try:
+        start = time.time()
+        if name == "ALL":
+            uptrend, downtrend, total, scanned = _cached(
+                "ema1:ALL", 300, lambda: _ema_between_scan_all(_intraday_rows_1, EMA1_MIN_BARS)
+            )
+        else:
+            uptrend, downtrend, total, scanned = _cached(
+                "ema1:" + name, 300, lambda: _ema_between_scan_sector(name, _intraday_rows_1, EMA1_MIN_BARS)
+            )
+        return jsonify({
+            "ok": True,
+            "sector": name,
+            "uptrend": uptrend,
+            "downtrend": downtrend,
+            "total": total,
+            "scanned": scanned,
+            "elapsed": round(time.time() - start, 1),
+        })
+    except Exception as e:
+        return jsonify({"ok": False, "error": "Scan error: %s" % e}), 502
+
+
+@app.route("/api/emacross5scan")
+def api_emacross5scan():
+    name = request.args.get("name", "").strip()
+    if name != "ALL" and name not in CANONICAL_TO_API:
+        return jsonify({"ok": False, "error": "Unknown sector"}), 400
+    try:
+        start = time.time()
+        if name == "ALL":
+            bullish, bearish, total, scanned = _cached(
+                "emacross5:ALL", 300, lambda: _ema_cross5_scan_all(_intraday_rows_5)
+            )
+        else:
+            bullish, bearish, total, scanned = _cached(
+                "emacross5:" + name, 300, lambda: _ema_cross5_scan_sector(name, _intraday_rows_5)
+            )
+        return jsonify({
+            "ok": True,
+            "sector": name,
+            "bullish": bullish,
+            "bearish": bearish,
+            "total": total,
+            "scanned": scanned,
+            "elapsed": round(time.time() - start, 1),
+        })
+    except Exception as e:
+        return jsonify({"ok": False, "error": "Scan error: %s" % e}), 502
+
+
+@app.route("/api/emasqz1scan")
+def api_emasqz1scan():
+    name = request.args.get("name", "").strip()
+    if name != "ALL" and name not in CANONICAL_TO_API:
+        return jsonify({"ok": False, "error": "Unknown sector"}), 400
+    try:
+        start = time.time()
+        if name == "ALL":
+            buy, sell, total, scanned = _cached(
+                "emasqz1:ALL", 300, lambda: _ema_sqz_scan_all(_intraday_rows_1)
+            )
+        else:
+            buy, sell, total, scanned = _cached(
+                "emasqz1:" + name, 300, lambda: _ema_sqz_scan_sector(name, _intraday_rows_1)
             )
         return jsonify({
             "ok": True,

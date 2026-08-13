@@ -3,6 +3,6 @@ services:
     name: nse-stock-scanner
     runtime: python
     buildCommand: pip install -r requirements.txt
-    startCommand: gunicorn app:app
+    startCommand: gunicorn -w 2 -b 0.0.0.0:$PORT app:app
     healthCheckPath: /
     plan: free

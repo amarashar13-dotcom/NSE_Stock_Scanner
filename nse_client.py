@@ -24,6 +24,7 @@ class NseClient:
     API_URL = BASE_URL + "/api"
     NEXT_API_URL = API_URL + "/NextApi/apiClient/GetQuoteApi"
     HANDSHAKE_URL = BASE_URL + "/option-chain"
+    CHARTING_URL = "https://charting.nseindia.com"
 
     def __init__(self, download_folder=None, timeout=20):
         self.timeout = timeout
@@ -34,6 +35,12 @@ class NseClient:
             )
         else:
             self._session = cffi_requests.Session(impersonate="chrome")
+        self._session.headers.update({
+            "Accept": "application/json, text/plain, */*",
+            "Accept-Language": "en-US,en;q=0.9",
+            "Origin": "https://charting.nseindia.com",
+            "Referer": "https://charting.nseindia.com/",
+        })
         self._lock = threading.Lock()
         self._last_req = 0.0
         self._handshaked = False
@@ -105,3 +112,52 @@ class NseClient:
             rows = self._req(self.NEXT_API_URL, params=params).json()
             data += reversed(rows)
         return data
+
+    def get_charting_token(self, symbol):
+        """Resolve the NSE charting scripcode (token) for an equity symbol.
+
+        The charting API keyed by its own token id, not the trading symbol, so
+        we look it up through the charting symbol search first.
+        """
+        resp = self._req(
+            self.CHARTING_URL + "/v1/exchanges/symbolsDynamic",
+            params={"symbol": symbol, "segment": "EQ"},
+        )
+        target = str(symbol).upper() + "-EQ"
+        for d in resp.json().get("data") or []:
+            if d.get("symbol") == target:
+                return d.get("scripcode")
+        return None
+
+    def fetch_intraday_1min(self, symbol, token=None):
+        """Fetch the full intraday 1-minute OHLC history for an equity symbol.
+
+        Returns a list of candles (chronological, oldest first), each a dict
+        with keys: time (epoch ms), open, high, low, close, volume.
+        """
+        return self._fetch_intraday(symbol, token, interval=1)
+
+    def fetch_intraday_5min(self, symbol, token=None):
+        """Fetch the full intraday 5-minute OHLC history for an equity symbol.
+
+        Returns a list of candles (chronological, oldest first), each a dict
+        with keys: time (epoch ms), open, high, low, close, volume.
+        """
+        return self._fetch_intraday(symbol, token, interval=5)
+
+    def _fetch_intraday(self, symbol, token, interval):
+        if token is None:
+            token = self.get_charting_token(symbol)
+        if not token:
+            return []
+        params = {
+            "token": str(token),
+            "fromDate": 0,
+            "toDate": int(time.time()),
+            "symbol": str(symbol).upper() + "-EQ",
+            "symbolType": "Equity",
+            "chartType": "I",
+            "timeInterval": interval,
+        }
+        resp = self._req(self.CHARTING_URL + "/v1/charts/symbolHistoricalData", params=params)
+        return resp.json().get("data") or []

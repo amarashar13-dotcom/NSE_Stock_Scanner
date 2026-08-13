@@ -41,7 +41,7 @@
     color: var(--gold);
     font-weight: 700;
   }
-  .tabs { display: flex; gap: 8px; margin-left: 8px; }
+  .tabs { display: flex; gap: 8px; margin-left: 8px; overflow-x: auto; scrollbar-width: thin; }
   .tab {
     background: var(--panel2);
     color: var(--dim);
@@ -293,7 +293,12 @@
       <button id="tabNews" class="tab">NEWS</button>
       <button id="tabScanner" class="tab">MACD SCAN</button>
       <button id="tabBreakout" class="tab">BREAKOUT</button>
+      <button id="tabDarvas" class="tab">DARVAS</button>
       <button id="tabRsi" class="tab">RSI SCAN</button>
+      <button id="tabEma5" class="tab">5M EMA</button>
+      <button id="tabEma1" class="tab">1M EMA</button>
+      <button id="tabEmaCross" class="tab">5M 10/100 CROSS</button>
+      <button id="tabEmaSqz" class="tab">1M EMA SQZ</button>
     </nav>
     <span id="marketBadge" class="closed">LOADING…</span>
     <button id="alertBtn" class="tab" title="Alert 2 minutes before high-impact events">ALERTS OFF</button>
@@ -349,6 +354,7 @@
         <div class="controls">
           <select id="scanSelect"><option>Loading sectors…</option></select>
           <button id="scanBtn" class="cat-btn">RUN SCAN</button>
+          <button id="scanExportBtn" class="cat-btn" disabled title="Export scanned bullish/bearish stocks as CSV">EXPORT CSV</button>
           <span id="scanMeta"></span>
         </div>
         <div class="tables">
@@ -370,6 +376,7 @@
         <div class="controls">
           <select id="boSelect"><option>Loading sectors…</option></select>
           <button id="boBtn" class="cat-btn">RUN SCAN</button>
+          <button id="boExportBtn" class="cat-btn" disabled title="Export breakout signals as CSV">EXPORT CSV</button>
           <span id="boMeta"></span>
         </div>
         <div class="full">
@@ -380,6 +387,34 @@
           <b>How it works:</b> 25-bar tight accumulation base (≤18% wide, quiet bodies), volume dry-up, then a breakout above the prior base high on ≥1.3x the 20-bar average volume.
           Requires rising 50/200 EMAs (close &gt; EMA50 &gt; EMA200), RSI ≥ 52, strong close (≥65% of range), price ≥ ₹50.
           Entry = max(open, breakout price). Stop below the base low. Targets = 1R / 2R / 3R.
+        </div>
+      </div>
+      <div id="darvasView" class="hidden">
+        <div class="controls">
+          <select id="darvasSelect"><option>Loading sectors…</option></select>
+          <button id="darvasBtn" class="cat-btn">RUN SCAN</button>
+          <button id="darvasExportBtn" class="cat-btn" disabled title="Export scanned breakout/breakdown/in-box stocks as CSV">EXPORT CSV</button>
+          <span id="darvasMeta"></span>
+        </div>
+        <div class="tables">
+          <div class="tbl-col">
+            <div class="tbl-title gain">BREAKOUT · BUY · RECENT BOX BREAKOUT ON VOLUME SURGE</div>
+            <table id="darvasBoTable"><tr><td class="empty" colspan="10">Run a scan</td></tr></table>
+          </div>
+          <div class="tbl-col">
+            <div class="tbl-title lose">BREAKDOWN · SELL · RECENT BOX BREAKDOWN ON VOLUME SURGE</div>
+            <table id="darvasBdTable"><tr><td class="empty" colspan="10">Run a scan</td></tr></table>
+          </div>
+        </div>
+        <div class="full" style="margin-bottom: 18px;">
+          <div class="tbl-title">IN BOX · CONSOLIDATING INSIDE A NEW BOX · WATCH FOR BREAKOUT</div>
+          <table id="darvasInTable"><tr><td class="empty" colspan="10">Run a scan</td></tr></table>
+        </div>
+        <div class="scan-note">
+          <b>How it works:</b> Darvas box theory on daily candles. A box forms when a stock makes a new 20-day high/low and then trades 3 days without a new high/low — box TOP = the high of the new-high day, box BOTTOM = the lowest low of the pullback.
+          <b>BREAKOUT</b> = close breaks above the box top within the last 8 sessions on ≥1.5× the prior 20-day volume, price still above the box top and above the 200 EMA. Entry = box top, Stop = box bottom, Targets = 1R / 2R / 3R.
+          <b>BREAKDOWN</b> = mirror image on the short side: a box forms after a new 20-day low, close breaks below the box bottom on volume, price still below it and below the 200 EMA. Entry = box bottom, Stop = box top, Targets = 1R / 2R / 3R below entry.
+          <b>IN BOX</b> = a new box formed within the last 8 sessions and price is still consolidating inside it. D52W% = distance below the 52-week high.
         </div>
       </div>
       <div id="rsiView" class="hidden">
@@ -402,6 +437,96 @@
         <div class="scan-note">
           <b>How it works:</b> Wilder's RSI (14). <b>BUY</b> = RSI between 60 and 70 (strong uptrend, not yet overbought) and price above the 200 EMA.
           <b>SELL</b> = RSI dropping (current &lt; previous), between 30 and 45 (weakness building before oversold), and price below the 200 EMA.
+        </div>
+      </div>
+      <div id="ema5View" class="hidden">
+        <div class="controls">
+          <select id="ema5Select"><option>Loading sectors…</option></select>
+          <button id="ema5Btn" class="cat-btn">RUN SCAN</button>
+          <button id="ema5ExportBtn" class="cat-btn" disabled title="Export scanned uptrend/downtrend stocks as CSV">EXPORT CSV</button>
+          <span id="ema5Meta"></span>
+        </div>
+        <div class="tables">
+          <div class="tbl-col">
+            <div class="tbl-title gain">UPTREND · EMA 100 &gt; EMA 200</div>
+            <table id="ema5UpTable"><tr><td class="empty" colspan="8">Run a scan</td></tr></table>
+          </div>
+          <div class="tbl-col">
+            <div class="tbl-title lose">DOWNTREND · EMA 100 &lt; EMA 200</div>
+            <table id="ema5DnTable"><tr><td class="empty" colspan="8">Run a scan</td></tr></table>
+          </div>
+        </div>
+        <div class="scan-note">
+          <b>How it works:</b> EMA 100 and EMA 200 computed on 5-minute candles. <b>SIGNAL</b> = the current price is trading inside the band between the two EMAs.
+          POSITION% shows where the price sits inside the band (0% = at the lower EMA, 100% = at the upper EMA).
+          <b>UPTREND</b> = EMA100 &gt; EMA200 (pullback inside a rising band). <b>DOWNTREND</b> = EMA100 &lt; EMA200 (bounce inside a falling band).
+        </div>
+      </div>
+      <div id="ema1View" class="hidden">
+        <div class="controls">
+          <select id="ema1Select"><option>Loading sectors…</option></select>
+          <button id="ema1Btn" class="cat-btn">RUN SCAN</button>
+          <button id="ema1ExportBtn" class="cat-btn" disabled title="Export scanned uptrend/downtrend stocks as CSV">EXPORT CSV</button>
+          <span id="ema1Meta"></span>
+        </div>
+        <div class="tables">
+          <div class="tbl-col">
+            <div class="tbl-title gain">UPTREND · EMA 100 &gt; EMA 200</div>
+            <table id="ema1UpTable"><tr><td class="empty" colspan="8">Run a scan</td></tr></table>
+          </div>
+          <div class="tbl-col">
+            <div class="tbl-title lose">DOWNTREND · EMA 100 &lt; EMA 200</div>
+            <table id="ema1DnTable"><tr><td class="empty" colspan="8">Run a scan</td></tr></table>
+          </div>
+        </div>
+        <div class="scan-note">
+          <b>How it works:</b> EMA 100 and EMA 200 computed on 1-minute candles. <b>SIGNAL</b> = the current price is trading inside the band between the two EMAs.
+          POSITION% shows where the price sits inside the band (0% = at the lower EMA, 100% = at the upper EMA).
+          <b>UPTREND</b> = EMA100 &gt; EMA200 (pullback inside a rising band). <b>DOWNTREND</b> = EMA100 &lt; EMA200 (bounce inside a falling band).
+        </div>
+      </div>
+      <div id="emaCrossView" class="hidden">
+        <div class="controls">
+          <select id="emaCrossSelect"><option>Loading sectors…</option></select>
+          <button id="emaCrossBtn" class="cat-btn">RUN SCAN</button>
+          <button id="emaCrossExportBtn" class="cat-btn" disabled title="Export bullish/bearish cross signals as CSV">EXPORT CSV</button>
+          <span id="emaCrossMeta"></span>
+        </div>
+        <div class="tables">
+          <div class="tbl-col">
+            <div class="tbl-title gain">BULLISH CROSS · EMA 10 crossed ABOVE EMA 100</div>
+            <table id="emaCrossUpTable"><tr><td class="empty" colspan="7">Run a scan</td></tr></table>
+          </div>
+          <div class="tbl-col">
+            <div class="tbl-title lose">BEARISH CROSS · EMA 10 crossed BELOW EMA 100</div>
+            <table id="emaCrossDnTable"><tr><td class="empty" colspan="7">Run a scan</td></tr></table>
+          </div>
+        </div>
+        <div class="scan-note">
+          <b>How it works:</b> EMA 10 and EMA 100 computed on 5-minute candles. <b>BULLISH</b> = EMA 10 crossed above EMA 100 on the latest candle (golden cross).
+          <b>BEARISH</b> = EMA 10 crossed below EMA 100 (death cross). GAP% = distance between the two EMAs after the cross.
+        </div>
+      </div>
+      <div id="emaSqzView" class="hidden">
+        <div class="controls">
+          <select id="emaSqzSelect"><option>Loading sectors…</option></select>
+          <button id="emaSqzBtn" class="cat-btn">RUN SCAN</button>
+          <button id="emaSqzExportBtn" class="cat-btn" disabled title="Export buy/sell squeeze signals as CSV">EXPORT CSV</button>
+          <span id="emaSqzMeta"></span>
+        </div>
+        <div class="tables">
+          <div class="tbl-col">
+            <div class="tbl-title gain">BUY · SQUEEZE + SLOPE UP</div>
+            <table id="emaSqzUpTable"><tr><td class="empty" colspan="9">Run a scan</td></tr></table>
+          </div>
+          <div class="tbl-col">
+            <div class="tbl-title lose">SELL · SQUEEZE + SLOPE DOWN</div>
+            <table id="emaSqzDnTable"><tr><td class="empty" colspan="9">Run a scan</td></tr></table>
+          </div>
+        </div>
+        <div class="scan-note">
+          <b>How it works:</b> EMA 20 / EMA 50 / EMA 100 / EMA 200 computed on 1-minute candles. <b>SQUEEZE</b> = all four EMAs within 0.5% of each other (tightly converged).
+          <b>BUY</b> = squeeze + fast EMA (20) slope turned UP. <b>SELL</b> = squeeze + fast EMA (20) slope turned DOWN.
         </div>
       </div>
     </section>
@@ -464,7 +589,7 @@
   let scannerInited = false;
 
   function syncScanSelect() {
-    [["scanSelect", "scan"], ["boSelect", "bo"], ["rsiSelect", "rsi"]].forEach(([id, store]) => {
+    [["scanSelect", "scan"], ["boSelect", "bo"], ["darvasSelect", "darvas"], ["rsiSelect", "rsi"], ["ema5Select", "ema5"], ["ema1Select", "ema1"], ["emaCrossSelect", "emacross"], ["emaSqzSelect", "emasqz"]].forEach(([id, store]) => {
       const sel = $(id);
       if (!sel || !sectors.length) return;
       const cur = sel.value || localStorage.getItem(store + "Sector") || "";
@@ -520,6 +645,8 @@
       const j = await res.json();
       if (!j.ok) throw new Error(j.error || "API error");
       drawBreakoutTable(j.signals);
+      lastBreakout = j.signals;
+      $("boExportBtn").disabled = !j.signals.length;
       $("boMeta").textContent = "Scanned " + j.scanned + " of " + j.total + " stocks in " + j.elapsed + "s";
       showErr(null);
     } catch (e) {
@@ -529,6 +656,158 @@
       btn.disabled = false;
       btn.textContent = "RUN SCAN";
     }
+  }
+
+  function drawDarvasTable(tbl, rows, label) {
+    if (!rows.length) {
+      tbl.innerHTML = '<tr><td class="empty" colspan="10">No ' + label + ' signals</td></tr>';
+      return;
+    }
+    let h = '<tr><th>SYMBOL</th><th>PRICE</th><th>CHG%</th><th>BOX TOP</th><th>BOX BOTTOM</th><th>WIDTH%</th><th>VOL RATIO</th><th>DAYS AGO</th><th>RSI</th><th>D52W%</th></tr>';
+    rows.forEach(r => {
+      h += '<tr><td class="sym"><a href="' + tvHref(r.symbol) + '" target="_blank" rel="noopener">' + r.symbol + '</a></td>'
+         + '<td class="' + pctClass(r.changePct) + '">' + fmt(r.price) + '</td>'
+         + '<td class="' + pctClass(r.changePct) + '">' + fmt(r.changePct, 2, true) + '%</td>'
+         + '<td class="up">' + fmt(r.boxTop) + '</td>'
+         + '<td class="dn">' + fmt(r.boxBottom) + '</td>'
+         + '<td>' + fmt(r.boxWidthPct, 1) + '%</td>'
+         + '<td>' + (r.volRatio == null ? "—" : fmt(r.volRatio)) + '</td>'
+         + '<td>' + (r.breakoutAge == null ? "—" : r.breakoutAge) + '</td>'
+         + '<td>' + fmt(r.rsi, 1) + '</td>'
+         + '<td class="' + pctClass(-r.distHigh52Pct) + '">' + fmt(r.distHigh52Pct, 1, true) + '%</td></tr>';
+    });
+    tbl.innerHTML = h;
+  }
+
+  async function runDarvasScan() {
+    const sel = $("darvasSelect");
+    const name = sel.value;
+    if (!name) return;
+    const btn = $("darvasBtn");
+    btn.disabled = true;
+    btn.textContent = "SCANNING…";
+    $("darvasMeta").textContent = name === "ALL"
+      ? "Scanning ALL sectors (~700 stocks, takes several minutes)…"
+      : "Scanning constituents (takes ~1 min first time)…";
+    $("darvasBoTable").innerHTML = '<tr><td class="empty" colspan="10">Scanning…</td></tr>';
+    $("darvasBdTable").innerHTML = '<tr><td class="empty" colspan="10">Scanning…</td></tr>';
+    $("darvasInTable").innerHTML = '<tr><td class="empty" colspan="10">Scanning…</td></tr>';
+    try {
+      const res = await fetch("/api/darvas?name=" + encodeURIComponent(name));
+      const j = await res.json();
+      if (!j.ok) throw new Error(j.error || "API error");
+      drawDarvasTable($("darvasBoTable"), j.breakout, "breakout");
+      drawDarvasTable($("darvasBdTable"), j.breakdown, "breakdown");
+      drawDarvasTable($("darvasInTable"), j.inbox, "in-box");
+      lastDarvas = { breakout: j.breakout, breakdown: j.breakdown, inbox: j.inbox };
+      $("darvasExportBtn").disabled = !(j.breakout.length || j.breakdown.length || j.inbox.length);
+      $("darvasMeta").textContent = "Scanned " + j.scanned + " of " + j.total + " stocks in " + j.elapsed + "s";
+      showErr(null);
+    } catch (e) {
+      $("darvasMeta").textContent = "";
+      showErr(e.message);
+    } finally {
+      btn.disabled = false;
+      btn.textContent = "RUN SCAN";
+    }
+  }
+
+  let lastDarvas = { breakout: [], breakdown: [], inbox: [] };
+
+  function exportDarvasList() {
+    const rows = [];
+    const add = (arr, type) => arr.forEach(r =>
+      rows.push([r.symbol, type, r.price, r.changePct, r.boxTop, r.boxBottom, r.boxWidthPct,
+                 r.volRatio, r.breakoutAge, r.rsi, r.entry, r.stop, r.target1, r.target2, r.target3,
+                 r.distHigh52Pct])
+    );
+    add(lastDarvas.breakout, "BREAKOUT");
+    add(lastDarvas.breakdown, "BREAKDOWN");
+    add(lastDarvas.inbox, "IN_BOX");
+    if (!rows.length) return;
+    const csv = rows.map(r => r.map(v => {
+      const s = String(v === null || v === undefined ? "" : v);
+      return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+    }).join(",")).join("\n");
+    const stamp = new Date().toISOString().slice(0, 10);
+    downloadFile("darvas_scan_" + stamp + ".csv",
+      "SYMBOL,TYPE,PRICE,CHG%,BOX_TOP,BOX_BOTTOM,WIDTH%,VOL_RATIO,DAYS_AGO,RSI,ENTRY,STOP,TARGET1,TARGET2,TARGET3,D52W%\n" + csv);
+  }
+
+  let lastScan = { bullish: [], bearish: [] };
+  let lastBreakout = [];
+  let lastEma5 = { uptrend: [], downtrend: [] };
+  let lastEma1 = { uptrend: [], downtrend: [] };
+  let lastEmaCross = { bullish: [], bearish: [] };
+  let lastEmaSqz = { buy: [], sell: [] };
+
+  function toCsv(rows, header) {
+    const csv = rows.map(r => r.map(v => {
+      const s = String(v === null || v === undefined ? "" : v);
+      return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+    }).join(",")).join("\n");
+    return header + "\n" + csv;
+  }
+  function csvStamp(prefix) {
+    return prefix + "_scan_" + new Date().toISOString().slice(0, 10) + ".csv";
+  }
+
+  function exportScanList() {
+    const rows = [];
+    const add = (arr, type) => arr.forEach(r => rows.push(
+      [r.symbol, type, r.price, r.changePct, r.macdPrev, r.macdLast, r.histPrev, r.histLast, r.ema100, r.distPct]
+    ));
+    add(lastScan.bullish, "BULLISH");
+    add(lastScan.bearish, "BEARISH");
+    if (!rows.length) return;
+    downloadFile(csvStamp("macd"),
+      toCsv(rows, "SYMBOL,TYPE,PRICE,CHG%,MACD_PREV,MACD_NOW,HIST_PREV,HIST_NOW,EMA100,DIST%"));
+  }
+
+  function exportBreakoutList() {
+    if (!lastBreakout.length) return;
+    const rows = lastBreakout.map(r => [
+      r.symbol, "BREAKOUT", r.price, r.changePct, r.entry, r.stop, r.target1, r.target2, r.target3,
+      r.volRatio, r.rsi, r.baseHigh, r.baseLow, r.baseWidthPct, r.riskPct, r.closePos
+    ]);
+    downloadFile(csvStamp("breakout"),
+      toCsv(rows, "SYMBOL,TYPE,PRICE,CHG%,ENTRY,STOP,TARGET1,TARGET2,TARGET3,VOL_RATIO,RSI,BASE_HIGH,BASE_LOW,BASE_WIDTH%,RISK%,CLOSE_POS%"));
+  }
+
+  function exportEmaList(store, prefix, label) {
+    const rows = [];
+    const add = (arr, trend) => arr.forEach(r => rows.push(
+      [r.symbol, trend, r.price, r.changePct, r.ema100, r.ema200, r.bandWidthPct, r.posPct]
+    ));
+    add(store.uptrend, label + "_UP");
+    add(store.downtrend, label + "_DOWN");
+    if (!rows.length) return;
+    downloadFile(csvStamp(prefix),
+      toCsv(rows, "SYMBOL,TREND,PRICE,CHG%,EMA100,EMA200,BAND_WIDTH%,POSITION%"));
+  }
+
+  function exportEmaCrossList() {
+    const rows = [];
+    const add = (arr, cross) => arr.forEach(r => rows.push(
+      [r.symbol, cross, r.price, r.changePct, r.ema10, r.ema100, r.gapPct]
+    ));
+    add(lastEmaCross.bullish, "BULLISH");
+    add(lastEmaCross.bearish, "BEARISH");
+    if (!rows.length) return;
+    downloadFile(csvStamp("emacross"),
+      toCsv(rows, "SYMBOL,CROSS,PRICE,CHG%,EMA10,EMA100,GAP%"));
+  }
+
+  function exportEmaSqzList() {
+    const rows = [];
+    const add = (arr, signal) => arr.forEach(r => rows.push(
+      [r.symbol, signal, r.price, r.changePct, r.ema20, r.ema50, r.ema100, r.ema200, r.spreadPct, r.slope]
+    ));
+    add(lastEmaSqz.buy, "BUY");
+    add(lastEmaSqz.sell, "SELL");
+    if (!rows.length) return;
+    downloadFile(csvStamp("emasqz"),
+      toCsv(rows, "SYMBOL,SIGNAL,PRICE,CHG%,EMA20,EMA50,EMA100,EMA200,SPREAD%,SLOPE"));
   }
 
   function drawRsiTable(tbl, rows) {
@@ -609,6 +888,187 @@
     }
   }
 
+  function drawEma5Table(tbl, rows, trendLabel) {
+    if (!rows.length) {
+      tbl.innerHTML = '<tr><td class="empty" colspan="8">No ' + trendLabel + ' signals</td></tr>';
+      return;
+    }
+    let h = '<tr><th>SYMBOL</th><th>PRICE</th><th>CHG%</th><th>EMA 100</th><th>EMA 200</th><th>BAND WIDTH%</th><th>POSITION%</th><th>TREND</th></tr>';
+    rows.forEach(r => {
+      h += '<tr><td class="sym"><a href="' + tvHref(r.symbol) + '" target="_blank" rel="noopener">' + r.symbol + '</a></td>'
+         + '<td class="' + pctClass(r.changePct) + '">' + fmt(r.price) + '</td>'
+         + '<td class="' + pctClass(r.changePct) + '">' + fmt(r.changePct, 2, true) + '%</td>'
+         + '<td>' + fmt(r.ema100) + '</td>'
+         + '<td>' + fmt(r.ema200) + '</td>'
+         + '<td>' + fmt(r.bandWidthPct) + '%</td>'
+         + '<td>' + fmt(r.posPct, 1) + '%</td>'
+         + '<td class="' + (r.uptrend ? "up" : "dn") + '">' + (r.uptrend ? "UPTREND" : "DOWNTREND") + '</td></tr>';
+    });
+    tbl.innerHTML = h;
+  }
+
+  async function runEma5Scan() {
+    const sel = $("ema5Select");
+    const name = sel.value;
+    if (!name) return;
+    const btn = $("ema5Btn");
+    btn.disabled = true;
+    btn.textContent = "SCANNING…";
+    $("ema5Meta").textContent = name === "ALL"
+      ? "Scanning ALL sectors on 5-min data (takes a few minutes)…"
+      : "Scanning constituents on 5-min data…";
+    $("ema5UpTable").innerHTML = '<tr><td class="empty" colspan="8">Scanning…</td></tr>';
+    $("ema5DnTable").innerHTML = '<tr><td class="empty" colspan="8">Scanning…</td></tr>';
+    try {
+      const res = await fetch("/api/ema5scan?name=" + encodeURIComponent(name));
+      const j = await res.json();
+      if (!j.ok) throw new Error(j.error || "API error");
+      drawEma5Table($("ema5UpTable"), j.uptrend, "uptrend");
+      drawEma5Table($("ema5DnTable"), j.downtrend, "downtrend");
+      lastEma5 = { uptrend: j.uptrend, downtrend: j.downtrend };
+      $("ema5ExportBtn").disabled = !(j.uptrend.length || j.downtrend.length);
+      $("ema5Meta").textContent = "Scanned " + j.scanned + " of " + j.total + " stocks in " + j.elapsed + "s";
+      showErr(null);
+    } catch (e) {
+      $("ema5Meta").textContent = "";
+      showErr(e.message);
+    } finally {
+      btn.disabled = false;
+      btn.textContent = "RUN SCAN";
+    }
+  }
+
+  async function runEma1Scan() {
+    const sel = $("ema1Select");
+    const name = sel.value;
+    if (!name) return;
+    const btn = $("ema1Btn");
+    btn.disabled = true;
+    btn.textContent = "SCANNING…";
+    $("ema1Meta").textContent = name === "ALL"
+      ? "Scanning ALL sectors on 1-min data (takes a few minutes)…"
+      : "Scanning constituents on 1-min data…";
+    $("ema1UpTable").innerHTML = '<tr><td class="empty" colspan="8">Scanning…</td></tr>';
+    $("ema1DnTable").innerHTML = '<tr><td class="empty" colspan="8">Scanning…</td></tr>';
+    try {
+      const res = await fetch("/api/ema1scan?name=" + encodeURIComponent(name));
+      const j = await res.json();
+      if (!j.ok) throw new Error(j.error || "API error");
+      drawEma5Table($("ema1UpTable"), j.uptrend, "uptrend");
+      drawEma5Table($("ema1DnTable"), j.downtrend, "downtrend");
+      lastEma1 = { uptrend: j.uptrend, downtrend: j.downtrend };
+      $("ema1ExportBtn").disabled = !(j.uptrend.length || j.downtrend.length);
+      $("ema1Meta").textContent = "Scanned " + j.scanned + " of " + j.total + " stocks in " + j.elapsed + "s";
+      showErr(null);
+    } catch (e) {
+      $("ema1Meta").textContent = "";
+      showErr(e.message);
+    } finally {
+      btn.disabled = false;
+      btn.textContent = "RUN SCAN";
+    }
+  }
+
+  function drawEmaCrossTable(tbl, rows, label) {
+    if (!rows.length) {
+      tbl.innerHTML = '<tr><td class="empty" colspan="7">No ' + label + ' cross signals</td></tr>';
+      return;
+    }
+    let h = '<tr><th>SYMBOL</th><th>PRICE</th><th>CHG%</th><th>EMA 10</th><th>EMA 100</th><th>GAP%</th><th>CROSS</th></tr>';
+    rows.forEach(r => {
+      h += '<tr><td class="sym"><a href="' + tvHref(r.symbol) + '" target="_blank" rel="noopener">' + r.symbol + '</a></td>'
+         + '<td class="' + pctClass(r.changePct) + '">' + fmt(r.price) + '</td>'
+         + '<td class="' + pctClass(r.changePct) + '">' + fmt(r.changePct, 2, true) + '%</td>'
+         + '<td>' + fmt(r.ema10) + '</td>'
+         + '<td>' + fmt(r.ema100) + '</td>'
+         + '<td>' + fmt(r.gapPct, 2, true) + '%</td>'
+         + '<td class="' + (r.cross === "BULLISH" ? "up" : "dn") + '">' + r.cross + '</td></tr>';
+    });
+    tbl.innerHTML = h;
+  }
+
+  async function runEmaCrossScan() {
+    const sel = $("emaCrossSelect");
+    const name = sel.value;
+    if (!name) return;
+    const btn = $("emaCrossBtn");
+    btn.disabled = true;
+    btn.textContent = "SCANNING…";
+    $("emaCrossMeta").textContent = name === "ALL"
+      ? "Scanning ALL sectors on 5-min data (takes a few minutes)…"
+      : "Scanning constituents on 5-min data…";
+    $("emaCrossUpTable").innerHTML = '<tr><td class="empty" colspan="7">Scanning…</td></tr>';
+    $("emaCrossDnTable").innerHTML = '<tr><td class="empty" colspan="7">Scanning…</td></tr>';
+    try {
+      const res = await fetch("/api/emacross5scan?name=" + encodeURIComponent(name));
+      const j = await res.json();
+      if (!j.ok) throw new Error(j.error || "API error");
+      drawEmaCrossTable($("emaCrossUpTable"), j.bullish, "bullish");
+      drawEmaCrossTable($("emaCrossDnTable"), j.bearish, "bearish");
+      lastEmaCross = { bullish: j.bullish, bearish: j.bearish };
+      $("emaCrossExportBtn").disabled = !(j.bullish.length || j.bearish.length);
+      $("emaCrossMeta").textContent = "Scanned " + j.scanned + " of " + j.total + " stocks in " + j.elapsed + "s";
+      showErr(null);
+    } catch (e) {
+      $("emaCrossMeta").textContent = "";
+      showErr(e.message);
+    } finally {
+      btn.disabled = false;
+      btn.textContent = "RUN SCAN";
+    }
+  }
+
+  function drawEmaSqzTable(tbl, rows, label) {
+    if (!rows.length) {
+      tbl.innerHTML = '<tr><td class="empty" colspan="9">No ' + label + ' signals</td></tr>';
+      return;
+    }
+    let h = '<tr><th>SYMBOL</th><th>PRICE</th><th>CHG%</th><th>EMA 20</th><th>EMA 50</th><th>EMA 100</th><th>EMA 200</th><th>SPREAD%</th><th>SLOPE</th></tr>';
+    rows.forEach(r => {
+      h += '<tr><td class="sym"><a href="' + tvHref(r.symbol) + '" target="_blank" rel="noopener">' + r.symbol + '</a></td>'
+         + '<td class="' + pctClass(r.changePct) + '">' + fmt(r.price) + '</td>'
+         + '<td class="' + pctClass(r.changePct) + '">' + fmt(r.changePct, 2, true) + '%</td>'
+         + '<td>' + fmt(r.ema20) + '</td>'
+         + '<td>' + fmt(r.ema50) + '</td>'
+         + '<td>' + fmt(r.ema100) + '</td>'
+         + '<td>' + fmt(r.ema200) + '</td>'
+         + '<td>' + fmt(r.spreadPct) + '%</td>'
+         + '<td class="' + (r.slope === "UP" ? "up" : "dn") + '">' + r.slope + '</td></tr>';
+    });
+    tbl.innerHTML = h;
+  }
+
+  async function runEmaSqzScan() {
+    const sel = $("emaSqzSelect");
+    const name = sel.value;
+    if (!name) return;
+    const btn = $("emaSqzBtn");
+    btn.disabled = true;
+    btn.textContent = "SCANNING…";
+    $("emaSqzMeta").textContent = name === "ALL"
+      ? "Scanning ALL sectors on 1-min data (takes a few minutes)…"
+      : "Scanning constituents on 1-min data…";
+    $("emaSqzUpTable").innerHTML = '<tr><td class="empty" colspan="9">Scanning…</td></tr>';
+    $("emaSqzDnTable").innerHTML = '<tr><td class="empty" colspan="9">Scanning…</td></tr>';
+    try {
+      const res = await fetch("/api/emasqz1scan?name=" + encodeURIComponent(name));
+      const j = await res.json();
+      if (!j.ok) throw new Error(j.error || "API error");
+      drawEmaSqzTable($("emaSqzUpTable"), j.buy, "buy");
+      drawEmaSqzTable($("emaSqzDnTable"), j.sell, "sell");
+      lastEmaSqz = { buy: j.buy, sell: j.sell };
+      $("emaSqzExportBtn").disabled = !(j.buy.length || j.sell.length);
+      $("emaSqzMeta").textContent = "Scanned " + j.scanned + " of " + j.total + " stocks in " + j.elapsed + "s";
+      showErr(null);
+    } catch (e) {
+      $("emaSqzMeta").textContent = "";
+      showErr(e.message);
+    } finally {
+      btn.disabled = false;
+      btn.textContent = "RUN SCAN";
+    }
+  }
+
   function drawScanTable(tbl, rows) {
     if (!rows.length) {
       tbl.innerHTML = '<tr><td class="empty" colspan="7">No signals</td></tr>';
@@ -648,6 +1108,8 @@
       if (!j.ok) throw new Error(j.error || "API error");
       drawScanTable($("scanBullTable"), j.bullish);
       drawScanTable($("scanBearTable"), j.bearish);
+      lastScan = { bullish: j.bullish, bearish: j.bearish };
+      $("scanExportBtn").disabled = !(j.bullish.length || j.bearish.length);
       $("scanMeta").textContent = "Scanned " + j.scanned + " of " + j.total + " stocks in " + j.elapsed + "s";
       showErr(null);
     } catch (e) {
@@ -1032,31 +1494,65 @@
     const isNews = view === "news";
     const isScanner = view === "scanner";
     const isBreakout = view === "breakout";
+    const isDarvas = view === "darvas";
     const isRsi = view === "rsi";
+    const isEma5 = view === "ema5";
+    const isEma1 = view === "ema1";
+    const isEmaCross = view === "emacross";
+    const isEmaSqz = view === "emasqz";
+    const isIntraday = isEma5 || isEma1 || isEmaCross || isEmaSqz;
+    const isPanels = isNews || isScanner || isBreakout || isDarvas || isRsi || isIntraday;
     $("tabSectors").classList.toggle("active", view === "sectors");
     $("tabNews").classList.toggle("active", isNews);
     $("tabScanner").classList.toggle("active", isScanner);
     $("tabBreakout").classList.toggle("active", isBreakout);
+    $("tabDarvas").classList.toggle("active", isDarvas);
     $("tabRsi").classList.toggle("active", isRsi);
-    $("main").classList.toggle("news", isNews || isScanner || isBreakout || isRsi);
-    $("sectorsPanel").classList.toggle("hidden", isNews || isScanner || isBreakout || isRsi);
-    $("sectorsView").classList.toggle("hidden", isNews || isScanner || isBreakout || isRsi);
+    $("tabEma5").classList.toggle("active", isEma5);
+    $("tabEma1").classList.toggle("active", isEma1);
+    $("tabEmaCross").classList.toggle("active", isEmaCross);
+    $("tabEmaSqz").classList.toggle("active", isEmaSqz);
+    $("main").classList.toggle("news", isPanels);
+    $("sectorsPanel").classList.toggle("hidden", isPanels);
+    $("sectorsView").classList.toggle("hidden", isPanels);
     $("newsView").classList.toggle("hidden", !isNews);
     $("scannerView").classList.toggle("hidden", !isScanner);
     $("breakoutView").classList.toggle("hidden", !isBreakout);
+    $("darvasView").classList.toggle("hidden", !isDarvas);
     $("rsiView").classList.toggle("hidden", !isRsi);
+    $("ema5View").classList.toggle("hidden", !isEma5);
+    $("ema1View").classList.toggle("hidden", !isEma1);
+    $("emaCrossView").classList.toggle("hidden", !isEmaCross);
+    $("emaSqzView").classList.toggle("hidden", !isEmaSqz);
     if (isNews && !newsLoaded) { newsLoaded = true; buildCatButtons(); loadNews(); }
-    if ((isScanner || isBreakout || isRsi) && !scannerInited) { scannerInited = true; initScanner(); }
+    if ((isScanner || isBreakout || isDarvas || isRsi || isIntraday) && !scannerInited) { scannerInited = true; initScanner(); }
   }
 
   $("tabSectors").addEventListener("click", () => switchTab("sectors"));
   $("tabNews").addEventListener("click", () => switchTab("news"));
   $("tabScanner").addEventListener("click", () => switchTab("scanner"));
   $("tabBreakout").addEventListener("click", () => switchTab("breakout"));
+  $("tabDarvas").addEventListener("click", () => switchTab("darvas"));
   $("tabRsi").addEventListener("click", () => switchTab("rsi"));
+  $("tabEma5").addEventListener("click", () => switchTab("ema5"));
+  $("tabEma1").addEventListener("click", () => switchTab("ema1"));
+  $("tabEmaCross").addEventListener("click", () => switchTab("emacross"));
+  $("tabEmaSqz").addEventListener("click", () => switchTab("emasqz"));
   $("scanBtn").addEventListener("click", () => runScan());
+  $("scanExportBtn").addEventListener("click", () => exportScanList());
   $("boBtn").addEventListener("click", () => runBreakoutScan());
+  $("boExportBtn").addEventListener("click", () => exportBreakoutList());
+  $("darvasBtn").addEventListener("click", () => runDarvasScan());
+  $("darvasExportBtn").addEventListener("click", () => exportDarvasList());
   $("rsiBtn").addEventListener("click", () => runRsiScan());
+  $("ema5Btn").addEventListener("click", () => runEma5Scan());
+  $("ema5ExportBtn").addEventListener("click", () => exportEmaList(lastEma5, "ema5", "EMA5"));
+  $("ema1Btn").addEventListener("click", () => runEma1Scan());
+  $("ema1ExportBtn").addEventListener("click", () => exportEmaList(lastEma1, "ema1", "EMA1"));
+  $("emaCrossBtn").addEventListener("click", () => runEmaCrossScan());
+  $("emaCrossExportBtn").addEventListener("click", () => exportEmaCrossList());
+  $("emaSqzBtn").addEventListener("click", () => runEmaSqzScan());
+  $("emaSqzExportBtn").addEventListener("click", () => exportEmaSqzList());
   $("rsiExportBtn").addEventListener("click", () => exportRsiList());
   $("newsRefreshBtn").addEventListener("click", () => { buildCatButtons(); loadNews(); });
   document.querySelectorAll("#fxFilter .cat-btn").forEach(b => {
